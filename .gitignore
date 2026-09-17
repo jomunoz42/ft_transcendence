@@ -36,6 +36,7 @@ venv/
 .DS_Store
 CLAUDE.md
 AGENTS.md
+docs/agents
 
 # Logs and runtime files
 *.log
