@@ -36,7 +36,7 @@ venv/
 .DS_Store
 CLAUDE.md
 AGENTS.md
-docs/agents
+docs/agents/
 .scratch/
 
 # Logs and runtime files

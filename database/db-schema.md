@@ -72,6 +72,7 @@ class Profile(Base):
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String)
     bio: Mapped[str | None] = mapped_column(String)
+    is_top10_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # False = friends only, True = public; enforced in the route layer, not the DB
     is_online: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # written by WebSocket layer, read elsewhere
     last_seen_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -146,7 +147,9 @@ class Top10Comment(Base):
     __tablename__ = "top10_comments"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    top10_owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)  # no FK — matches the original Prisma model, add one if needed
+    top10_owner_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )  # FK added 2026-09-18: without it, deleting a user orphans every comment left on their Top 10
     author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     body: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -160,7 +163,9 @@ class Top10Reaction(Base):
     __table_args__ = (UniqueConstraint("top10_owner_id", "author_id"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    top10_owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    top10_owner_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     reaction: Mapped[str] = mapped_column(String, nullable=False)  # like | dislike
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -173,6 +178,8 @@ Notes:
 - `Top10Entry` has no separate "list header" table — each user has exactly one Top 10, so `(user_id, rank)` uniqueness is the whole model. Reordering updates `rank` on affected rows in one transaction.
 - `Friendship` uses one row per unordered pair (not two directional rows), enforced by the functional unique index above — a native SQLAlchemy `Index`, not a raw-SQL migration like Prisma needed.
 - `CHECK (rank BETWEEN 1 AND 10)` is a native `CheckConstraint` on `Top10Entry` — also no raw SQL needed, unlike the Prisma version.
+- `Profile.is_top10_public` is the V1 privacy setting (added 2026-09-18, confirmed against `docs/myplaylist_simulator.py`, which shows exactly two states: public / friends-only). Visibility depends on *who is viewing*, so no DB constraint can enforce it — the column stores the flag, the route layer reads it. Boolean rather than a string enum because there are only two states; widen later if a third appears.
+- `Top10Comment.top10_owner_id` and `Top10Reaction.top10_owner_id` carry an FK to `users.id` with `ON DELETE CASCADE` (added 2026-09-18). They were FK-less only because the original Prisma model was; that rationale died with the Prisma switch. Without the FK, deleting a user cascades the rows they *wrote* but orphans every row written *on their Top 10*.
 
 ## Alembic setup
 
