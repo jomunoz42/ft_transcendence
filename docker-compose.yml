@@ -17,5 +17,18 @@ services:
       retries: 10
     restart: unless-stopped
 
+  backend:
+    build: ./backend
+    env_file: .env
+    # source mounted so edits and test runs do not need an image rebuild
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
