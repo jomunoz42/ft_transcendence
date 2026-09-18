@@ -28,8 +28,18 @@ Credentials come from `.env` at the repo root (copy `.env.example` first). Never
 
 ```bash
 make up          # start the stack
+make migrate     # apply outstanding migrations
+make test        # run the backend test suite
 make db-check    # verify the DB connects and persists across a restart
-make down        # stop the stack
+make down        # stop the stack — run this at the end of every session
+```
+
+`make down` never passes `-v`: that would drop the `postgres_data` volume and every
+row with it. To wipe the database on purpose:
+
+```bash
+make db-reset    # DESTRUCTIVE: drops the volume, brings Postgres back up empty
+make migrate     # recreate the schema
 ```
 
 `db-check.sh` works with either `docker compose` (v2) or `docker-compose` (v1); it detects which is installed.
