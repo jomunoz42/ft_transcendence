@@ -6,6 +6,50 @@ things; this file covers why they are the way they are.
 
 ---
 
+## Why not just run `down -v` every session while there is no real data yet?
+
+Tempting, and the data genuinely is disposable right now. Rejected anyway, for
+reasons that are not about the data:
+
+- Every `up` would then start empty, so `alembic upgrade head` becomes mandatory
+  before anything works — `alembic_version` lives in the volume too.
+- `make db-check` and ticket 03's last checkbox exist to prove data survives
+  `down`/`up`. Making `-v` the default stops exercising the property they test.
+- It saves 48 MB of disk and no RAM at all.
+- Worst of it: "we will stop using `-v` once the data matters" is a rule that has to
+  fire on exactly the session where it is easiest to forget, and the failure is
+  silent and unrecoverable. No error, no prompt, the rows are simply gone.
+
+The clean-database benefit is real though — it catches migrations that only work
+against an already-dirty local database. So it was split out instead of defaulted:
+
+- `make down` — the automatic session-end rule, keeps the volume.
+- `make db-reset` — DESTRUCTIVE, deliberate, drops the volume and starts empty.
+- `make migrate` — reapplies the schema afterwards.
+
+Destruction is now always something typed on purpose, with nothing to remember to
+turn off later.
+
+## Should `down` also remove the volumes, to stop Docker using resources?
+
+No. A volume is disk storage, not a process — it uses zero CPU and zero RAM whether
+or not anything is running. `docker-compose down` already stops and removes the
+containers, which is what actually frees resources. Adding `-v` deletes the
+`postgres_data` volume and every row in the database while freeing nothing but disk
+(measured at 48 MB when the schema was fresh).
+
+What keeps running after `down` is the Docker daemon itself — `dockerd` plus
+`containerd`, measured at about 184 MB resident on this machine, independent of any
+container. No compose flag affects that. To free it, run `wsl --shutdown` from
+Windows, which stops the daemon and the WSL VM. The volume survives on disk; it is
+just files.
+
+So there are three levels, and only the first belongs to the agent:
+
+1. `make down` — stops the containers. Runs at the end of every session in this repo.
+2. `wsl --shutdown` from Windows — frees the daemon and the VM. André's call.
+3. `down -v` — deletes the database. Never, unless the data is genuinely disposable.
+
 ## Is Alembic the ORM? Does it mean no more SQL?
 
 No on both counts, and the two tools are easy to merge by mistake.

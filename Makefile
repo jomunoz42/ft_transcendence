@@ -13,6 +13,8 @@ help:
 	@printf "%s\n" "  make status  Show app container status"
 	@printf "%s\n" "  make db-check Verify Postgres connects and persists across a restart"
 	@printf "%s\n" "  make test    Run the backend test suite"
+	@printf "%s\n" "  make migrate Apply outstanding database migrations"
+	@printf "%s\n" "  make db-reset DESTRUCTIVE: wipe the database volume and start empty"
 	@printf "%s\n" "  make clean   Remove local object/dependency files"
 
 check-compose:
@@ -30,6 +32,15 @@ logs: check-compose
 status: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" ps
 
+# Wipes the database on purpose: drops the postgres_data volume, then brings
+# Postgres back up empty. Run `make migrate` afterwards to recreate the schema.
+db-reset: check-compose
+	$(COMPOSE) -f "$(COMPOSE_FILE)" down -v
+	$(COMPOSE) -f "$(COMPOSE_FILE)" up -d postgres
+
+migrate: check-compose
+	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend alembic upgrade head
+
 test: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend pytest
 
@@ -44,4 +55,4 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all help up down logs status test db-check clean fclean re check-compose
+.PHONY: all help up down logs status test migrate db-reset db-check clean fclean re check-compose
