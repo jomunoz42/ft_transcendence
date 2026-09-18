@@ -1,2 +1,8 @@
 fastapi
 uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+
+# test dependencies
+pytest
+httpx
