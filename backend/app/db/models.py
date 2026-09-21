@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -42,6 +43,12 @@ class User(Base):
 
     profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     top10_entries: Mapped[list["Top10Entry"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    sent_requests: Mapped[list["Friendship"]] = relationship(
+        foreign_keys="Friendship.requester_id", back_populates="requester", cascade="all, delete-orphan"
+    )
+    received_requests: Mapped[list["Friendship"]] = relationship(
+        foreign_keys="Friendship.addressee_id", back_populates="addressee", cascade="all, delete-orphan"
+    )
 
 
 class Profile(Base):
@@ -97,3 +104,33 @@ class Top10Entry(Base):
 
     user: Mapped["User"] = relationship(back_populates="top10_entries")
     song: Mapped["Song"] = relationship(back_populates="top10_entries")
+
+
+class Friendship(Base):
+    __tablename__ = "friendships"
+    __table_args__ = (
+        CheckConstraint("requester_id <> addressee_id", name="ck_friendships_not_self"),
+        CheckConstraint(
+            "status IN ('pending', 'accepted', 'declined', 'blocked')", name="ck_friendships_status"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    requester_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    addressee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status: Mapped[str] = mapped_column(String, default="pending", nullable=False)  # allowed values enforced by ck_friendships_status
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    requester: Mapped["User"] = relationship(foreign_keys=[requester_id], back_populates="sent_requests")
+    addressee: Mapped["User"] = relationship(foreign_keys=[addressee_id], back_populates="received_requests")
+
+
+# One row per unordered pair: A->B and B->A both map to (least, greatest), so the
+# second request collides with the first whichever direction it comes from.
+Index(
+    "ux_friendships_unordered_pair",
+    func.least(Friendship.requester_id, Friendship.addressee_id),
+    func.greatest(Friendship.requester_id, Friendship.addressee_id),
+    unique=True,
+)
