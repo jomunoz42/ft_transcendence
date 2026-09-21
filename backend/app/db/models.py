@@ -9,12 +9,15 @@ from __future__ import annotations
 import datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -38,6 +41,7 @@ class User(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
+    top10_entries: Mapped[list["Top10Entry"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Profile(Base):
@@ -55,3 +59,41 @@ class Profile(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user: Mapped["User"] = relationship(back_populates="profile")
+
+
+class Song(Base):
+    __tablename__ = "songs"
+    __table_args__ = (UniqueConstraint("provider", "provider_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "spotify", "deezer", "manual"
+    provider_id: Mapped[str] = mapped_column(String, nullable=False)  # external track id, or generated id for manual entries
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    artist: Mapped[str] = mapped_column(String, nullable=False)
+    album: Mapped[str | None] = mapped_column(String)
+    cover_url: Mapped[str | None] = mapped_column(String)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)  # provider-specific extras
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    top10_entries: Mapped[list["Top10Entry"]] = relationship(back_populates="song")
+
+
+class Top10Entry(Base):
+    __tablename__ = "top10_entries"
+    __table_args__ = (
+        UniqueConstraint("user_id", "rank"),
+        UniqueConstraint("user_id", "song_id"),
+        CheckConstraint("rank BETWEEN 1 AND 10", name="ck_top10_entries_rank_range"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    song_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("songs.id", ondelete="RESTRICT"), nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-10, enforced by the CHECK constraint above
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="top10_entries")
+    song: Mapped["Song"] = relationship(back_populates="top10_entries")
