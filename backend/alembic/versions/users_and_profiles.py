@@ -1,5 +1,8 @@
 """create users and profiles
 
+First migration. Creates `users` (login data) and `profiles` (one per user,
+display info and the Top 10 privacy flag). Deleting a user deletes its profile.
+
 Revision ID: 5968aa5cf150
 Revises: 
 Create Date: 2026-09-18 14:45:54.849702
