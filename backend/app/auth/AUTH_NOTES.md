@@ -3,7 +3,7 @@
 Answers to questions asked while building auth, kept so they do not have to be
 re-derived. Newest at the top. The plan and tickets live in `.scratch/auth/`
 (local only); this file is the shared explanation. Database-side notes are in
-`database/NOTES.md`.
+`database/DATABASE_NOTES.md`.
 
 ---
 
