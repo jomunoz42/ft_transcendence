@@ -49,6 +49,12 @@ class User(Base):
     received_requests: Mapped[list["Friendship"]] = relationship(
         foreign_keys="Friendship.addressee_id", back_populates="addressee", cascade="all, delete-orphan"
     )
+    comments: Mapped[list["Top10Comment"]] = relationship(
+        foreign_keys="Top10Comment.author_id", back_populates="author", cascade="all, delete-orphan"
+    )
+    reactions: Mapped[list["Top10Reaction"]] = relationship(
+        foreign_keys="Top10Reaction.author_id", back_populates="author", cascade="all, delete-orphan"
+    )
 
 
 class Profile(Base):
@@ -134,3 +140,37 @@ Index(
     func.greatest(Friendship.requester_id, Friendship.addressee_id),
     unique=True,
 )
+
+
+class Top10Comment(Base):
+    __tablename__ = "top10_comments"
+    __table_args__ = (
+        CheckConstraint("length(trim(body)) > 0", name="ck_top10_comments_body_not_blank"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    top10_owner_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # whose Top 10
+    author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # who wrote it
+    body: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    author: Mapped["User"] = relationship(foreign_keys=[author_id], back_populates="comments")
+
+
+class Top10Reaction(Base):
+    __tablename__ = "top10_reactions"
+    __table_args__ = (
+        UniqueConstraint("top10_owner_id", "author_id"),
+        CheckConstraint("reaction IN ('like', 'dislike')", name="ck_top10_reactions_value"),
+        CheckConstraint("author_id <> top10_owner_id", name="ck_top10_reactions_not_own"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    top10_owner_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # whose Top 10
+    author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # who reacted
+    reaction: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    author: Mapped["User"] = relationship(foreign_keys=[author_id], back_populates="reactions")
