@@ -6,6 +6,63 @@ things; this file covers why they are the way they are.
 
 ---
 
+## What does each part of the database do?
+
+Seven tables, all defined in `backend/app/db/models.py` and created by the
+migrations in `backend/alembic/versions/` (full design: `database/db-schema.md`).
+Every rule below is enforced by Postgres itself, so a bug in the backend cannot
+store bad data — the insert fails with `IntegrityError` instead.
+
+**Users and profiles** — `users_and_profiles.py`, ticket 03
+
+- `users`: login data (email, password hash, lockout, soft-delete). Email is unique.
+- `profiles`: one per user — display name, avatar, bio, and `is_top10_public`
+  (false = friends only). Deleting a user deletes their profile.
+
+**Songs and the Top 10** — `songs_and_top10.py`, ticket 04
+
+- `songs`: one row per track, shared by everyone. `provider` says where it came
+  from (`spotify`, `deezer`, `manual`) and `(provider, provider_id)` is unique, so
+  the same track is never stored twice.
+- `top10_entries`: a user's ranked list — one row per (user, song, rank).
+  - rank must be 1–10
+  - one song per rank per user
+  - no song twice in the same Top 10
+  - a song still in someone's Top 10 cannot be deleted
+  - deleting a user deletes their Top 10
+
+**Friendships** — `friendships.py`, ticket 05
+
+- `friendships`: one row per pair of users — who asked, who was asked, and the
+  status (`pending`, `accepted`, `declined`, `blocked`).
+  - nobody can befriend themself
+  - only one row per pair, whichever side asked first
+  - status must be one of the four values
+  - deleting either user deletes the friendship
+- Requests go through `send_friend_request` — see the next entry for its rules.
+
+**Comments and reactions** — `comments_and_reactions.py`, ticket 06
+
+- `top10_comments`: text left on someone's Top 10. Blank comments are rejected.
+  Owners can comment on their own Top 10 (to reply).
+- `top10_reactions`: a like or dislike on someone's Top 10.
+  - only `like` or `dislike`
+  - one reaction per person per Top 10 (changing it updates the same row)
+  - nobody can react to their own Top 10, so self-likes cannot inflate rankings
+- Both tables point at two users: the Top 10's owner and the author. Deleting
+  either one deletes the row.
+
+**Not enforced by the database, on purpose**
+
+- Who can *see* a Top 10 (`is_top10_public`): depends on who is looking, so the
+  route layer decides.
+- Max comment length: a product choice, validated by the endpoint.
+
+Tests for each part: `backend/tests/test_user_profile.py`, `test_top10.py`,
+`test_friendships.py`, `test_friend_requests.py`, `test_comments_reactions.py`.
+
+---
+
 ## What are the rules for sending a friend request?
 
 A pair of users has at most one row in `friendships` (the unordered-pair unique
