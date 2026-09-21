@@ -60,8 +60,12 @@ class User(Base):
     received_requests: Mapped[list["Friendship"]] = relationship(
         foreign_keys="Friendship.addressee_id", back_populates="addressee", cascade="all, delete-orphan"
     )
-    comments: Mapped[list["Top10Comment"]] = relationship(back_populates="author", cascade="all, delete-orphan")
-    reactions: Mapped[list["Top10Reaction"]] = relationship(back_populates="author", cascade="all, delete-orphan")
+    comments: Mapped[list["Top10Comment"]] = relationship(
+        foreign_keys="Top10Comment.author_id", back_populates="author", cascade="all, delete-orphan"
+    )
+    reactions: Mapped[list["Top10Reaction"]] = relationship(
+        foreign_keys="Top10Reaction.author_id", back_populates="author", cascade="all, delete-orphan"
+    )
 
 
 class Profile(Base):
@@ -121,6 +125,12 @@ class Top10Entry(Base):
 
 class Friendship(Base):
     __tablename__ = "friendships"
+    __table_args__ = (
+        CheckConstraint("requester_id <> addressee_id", name="ck_friendships_not_self"),
+        CheckConstraint(
+            "status IN ('pending', 'accepted', 'declined', 'blocked')", name="ck_friendships_status"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     requester_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -145,6 +155,9 @@ Index(
 
 class Top10Comment(Base):
     __tablename__ = "top10_comments"
+    __table_args__ = (
+        CheckConstraint("length(trim(body)) > 0", name="ck_top10_comments_body_not_blank"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     top10_owner_id: Mapped[int] = mapped_column(
@@ -155,12 +168,16 @@ class Top10Comment(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    author: Mapped["User"] = relationship(back_populates="comments")
+    author: Mapped["User"] = relationship(foreign_keys=[author_id], back_populates="comments")
 
 
 class Top10Reaction(Base):
     __tablename__ = "top10_reactions"
-    __table_args__ = (UniqueConstraint("top10_owner_id", "author_id"),)
+    __table_args__ = (
+        UniqueConstraint("top10_owner_id", "author_id"),
+        CheckConstraint("reaction IN ('like', 'dislike')", name="ck_top10_reactions_value"),
+        CheckConstraint("author_id <> top10_owner_id", name="ck_top10_reactions_not_own"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     top10_owner_id: Mapped[int] = mapped_column(
@@ -171,14 +188,17 @@ class Top10Reaction(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    author: Mapped["User"] = relationship(back_populates="reactions")
+    author: Mapped["User"] = relationship(foreign_keys=[author_id], back_populates="reactions")
 ```
 
 Notes:
 - `Top10Entry` has no separate "list header" table — each user has exactly one Top 10, so `(user_id, rank)` uniqueness is the whole model. Reordering updates `rank` on affected rows in one transaction.
+- `Friendship` rejects self-friendship (`ck_friendships_not_self`) and any status outside `pending | accepted | declined | blocked` (`ck_friendships_status`) — both added 2026-09-21 in ticket 05, so a typo like `"acepted"` fails loudly instead of silently hiding a friendship from `status = 'accepted'` queries. A new status value needs a migration.
+- Friend requests go through `send_friend_request` in `backend/app/db/friendships.py` (decided by André 2026-09-21): asking someone who already asked you accepts their request; asking twice or asking a friend changes nothing; after a decline only the person who said no can ask again (the row reopens with roles swapped); nobody can ask across a block.
 - `Friendship` uses one row per unordered pair (not two directional rows), enforced by the functional unique index above — a native SQLAlchemy `Index`, not a raw-SQL migration like Prisma needed.
 - `CHECK (rank BETWEEN 1 AND 10)` is a native `CheckConstraint` on `Top10Entry` — also no raw SQL needed, unlike the Prisma version.
 - `Profile.is_top10_public` is the V1 privacy setting (added 2026-09-18, confirmed against `docs/myplaylist_simulator.py`, which shows exactly two states: public / friends-only). Visibility depends on *who is viewing*, so no DB constraint can enforce it — the column stores the flag, the route layer reads it. Boolean rather than a string enum because there are only two states; widen later if a third appears.
+- Comments and reactions (added 2026-09-21 in ticket 06, agreed with André): blank comments are rejected (`ck_top10_comments_body_not_blank`); reactions are only `like` or `dislike` (`ck_top10_reactions_value`); nobody can react to their own Top 10 (`ck_top10_reactions_not_own`) so self-likes cannot inflate rankings, while commenting on your own Top 10 stays allowed for replies. Max comment length is left to the endpoint. The `author` relationships name `foreign_keys` because both tables have two FKs to `users`.
 - `Top10Comment.top10_owner_id` and `Top10Reaction.top10_owner_id` carry an FK to `users.id` with `ON DELETE CASCADE` (added 2026-09-18). They were FK-less only because the original Prisma model was; that rationale died with the Prisma switch. Without the FK, deleting a user cascades the rows they *wrote* but orphans every row written *on their Top 10*.
 
 ## Alembic setup

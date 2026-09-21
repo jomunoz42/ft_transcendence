@@ -23,5 +23,6 @@ def session():
         yield db_session
     finally:
         db_session.close()
-        transaction.rollback()
+        if transaction.is_active:  # an IntegrityError already rolled it back
+            transaction.rollback()
         connection.close()

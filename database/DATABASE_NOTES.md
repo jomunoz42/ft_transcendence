@@ -6,6 +6,132 @@ things; this file covers why they are the way they are.
 
 ---
 
+## What does each part of the database do?
+
+Seven tables, all defined in `backend/app/db/models.py` and created by the
+migrations in `backend/alembic/versions/` (full design: `database/db-schema.md`).
+Every rule below is enforced by Postgres itself, so a bug in the backend cannot
+store bad data — the insert fails with `IntegrityError` instead.
+
+**Users and profiles** — `users_and_profiles.py`, ticket 03
+
+- `users`: login data (email, password hash, lockout, soft-delete). Email is unique.
+- `profiles`: one per user — display name, avatar, bio, and `is_top10_public`
+  (false = friends only). Deleting a user deletes their profile.
+
+**Songs and the Top 10** — `songs_and_top10.py`, ticket 04
+
+- `songs`: one row per track, shared by everyone. `provider` says where it came
+  from (`spotify`, `deezer`, `manual`) and `(provider, provider_id)` is unique, so
+  the same track is never stored twice.
+- `top10_entries`: a user's ranked list — one row per (user, song, rank).
+  - rank must be 1–10
+  - one song per rank per user
+  - no song twice in the same Top 10
+  - a song still in someone's Top 10 cannot be deleted
+  - deleting a user deletes their Top 10
+
+**Friendships** — `friendships.py`, ticket 05
+
+- `friendships`: one row per pair of users — who asked, who was asked, and the
+  status (`pending`, `accepted`, `declined`, `blocked`).
+  - nobody can befriend themself
+  - only one row per pair, whichever side asked first
+  - status must be one of the four values
+  - deleting either user deletes the friendship
+- Requests go through `send_friend_request` — see the next entry for its rules.
+
+**Comments and reactions** — `comments_and_reactions.py`, ticket 06
+
+- `top10_comments`: text left on someone's Top 10. Blank comments are rejected.
+  Owners can comment on their own Top 10 (to reply).
+- `top10_reactions`: a like or dislike on someone's Top 10.
+  - only `like` or `dislike`
+  - one reaction per person per Top 10 (changing it updates the same row)
+  - nobody can react to their own Top 10, so self-likes cannot inflate rankings
+- Both tables point at two users: the Top 10's owner and the author. Deleting
+  either one deletes the row.
+
+**Not enforced by the database, on purpose**
+
+- Who can *see* a Top 10 (`is_top10_public`): depends on who is looking, so the
+  route layer decides.
+- Max comment length: a product choice, validated by the endpoint.
+
+Tests for each part: `backend/tests/test_user_profile.py`, `test_top10.py`,
+`test_friendships.py`, `test_friend_requests.py`, `test_comments_reactions.py`.
+
+---
+
+## What are the rules for sending a friend request?
+
+A pair of users has at most one row in `friendships` (the unordered-pair unique
+index), so a request never blindly inserts. `send_friend_request` in
+`backend/app/db/friendships.py` looks up the pair's row and decides from its state:
+
+| Existing row for the pair | What happens |
+|---|---|
+| none | new row, `pending` |
+| the other person asked me, `pending` | `accepted` — both asked, so they are friends |
+| I already asked, `pending` | nothing, same row returned |
+| `accepted` | nothing, already friends |
+| `declined`, and I am the one who was declined | refused (`FriendRequestNotAllowed`) |
+| `declined`, and I am the one who said no | same row reopens as `pending`, with me as requester |
+| `blocked` | refused, whichever side asks |
+
+Why these rules:
+
+- **Asking back accepts.** Two pending rows would leave both people waiting on each
+  other, and every "are A and B friends?" query would need to check both directions.
+- **Only the person who said no can reopen.** Stops someone spamming a request after
+  being turned down, but lets the one who declined change their mind. When they do,
+  the other person still has to say yes — it goes back to `pending`, not `accepted`.
+- **Blocked refuses both sides.** Unblocking will be its own action, not a side
+  effect of a friend request.
+
+Not handled: both users clicking at the same instant. Both see no row, and the
+second insert hits the unique index (`IntegrityError`) — so a duplicate row is
+impossible, but the second click gets an error. The endpoint can retry once it
+exists; marked with a `ponytail:` comment in the code.
+
+Decided by André, 2026-09-21. Tests: `backend/tests/test_friend_requests.py`.
+
+---
+
+## Why one Alembic file per migration instead of a single file?
+
+Each file is one step of schema history, like a commit. Postgres records the last
+step it applied in the `alembic_version` table, and `alembic upgrade head` runs only
+the steps after it. Folding ticket 04 into the first migration would break every
+database already at step one: Alembic would see it as up to date and never create
+`songs` or `top10_entries`. New change, new file — never edit an applied one.
+
+Filenames are only labels. Alembic chains migrations by the `revision` /
+`down_revision` ids inside each file, so the files were renamed from the default
+`<hex id>_<slug>.py` to just what they do (`users_and_profiles.py`,
+`songs_and_top10.py`), set by `file_template = %%(slug)s` in `backend/alembic.ini`.
+Each file's docstring says what it creates and which migration it runs after. The
+hex ids stay inside the files: changing them would orphan the value already stored
+in `alembic_version`. Name new migrations with a short `-m`, e.g.
+`alembic revision --autogenerate -m "friendships"` gives `friendships.py`.
+
+---
+
+## Why is there no Postgres Dockerfile, and is the container defined in `.env.example`?
+
+No — the container is defined in `docker-compose.yml`, service `postgres`, with
+`image: postgres:17-alpine`. `.env.example` only holds the variables that service
+reads (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`); the
+official image's entrypoint uses them to create the user and database on first start.
+
+A Dockerfile is a recipe for building a custom image. The backend has one because it
+is our own code. Postgres is not: the official image already does everything needed,
+so compose pulls it as-is. A Dockerfile would only earn its place for extensions, a
+custom locale, or baked-in config. Init SQL does not need one — mount it into
+`/docker-entrypoint-initdb.d/` instead.
+
+---
+
 ## Why not just run `down -v` every session while there is no real data yet?
 
 Tempting, and the data genuinely is disposable right now. Rejected anyway, for
