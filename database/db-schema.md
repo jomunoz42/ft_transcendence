@@ -121,6 +121,12 @@ class Top10Entry(Base):
 
 class Friendship(Base):
     __tablename__ = "friendships"
+    __table_args__ = (
+        CheckConstraint("requester_id <> addressee_id", name="ck_friendships_not_self"),
+        CheckConstraint(
+            "status IN ('pending', 'accepted', 'declined', 'blocked')", name="ck_friendships_status"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     requester_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -176,6 +182,7 @@ class Top10Reaction(Base):
 
 Notes:
 - `Top10Entry` has no separate "list header" table — each user has exactly one Top 10, so `(user_id, rank)` uniqueness is the whole model. Reordering updates `rank` on affected rows in one transaction.
+- `Friendship` rejects self-friendship (`ck_friendships_not_self`) and any status outside `pending | accepted | declined | blocked` (`ck_friendships_status`) — both added 2026-09-21 in ticket 05, so a typo like `"acepted"` fails loudly instead of silently hiding a friendship from `status = 'accepted'` queries. A new status value needs a migration.
 - `Friendship` uses one row per unordered pair (not two directional rows), enforced by the functional unique index above — a native SQLAlchemy `Index`, not a raw-SQL migration like Prisma needed.
 - `CHECK (rank BETWEEN 1 AND 10)` is a native `CheckConstraint` on `Top10Entry` — also no raw SQL needed, unlike the Prisma version.
 - `Profile.is_top10_public` is the V1 privacy setting (added 2026-09-18, confirmed against `docs/myplaylist_simulator.py`, which shows exactly two states: public / friends-only). Visibility depends on *who is viewing*, so no DB constraint can enforce it — the column stores the flag, the route layer reads it. Boolean rather than a string enum because there are only two states; widen later if a third appears.
