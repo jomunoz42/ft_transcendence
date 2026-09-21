@@ -6,6 +6,41 @@ things; this file covers why they are the way they are.
 
 ---
 
+## What are the rules for sending a friend request?
+
+A pair of users has at most one row in `friendships` (the unordered-pair unique
+index), so a request never blindly inserts. `send_friend_request` in
+`backend/app/db/friendships.py` looks up the pair's row and decides from its state:
+
+| Existing row for the pair | What happens |
+|---|---|
+| none | new row, `pending` |
+| the other person asked me, `pending` | `accepted` — both asked, so they are friends |
+| I already asked, `pending` | nothing, same row returned |
+| `accepted` | nothing, already friends |
+| `declined`, and I am the one who was declined | refused (`FriendRequestNotAllowed`) |
+| `declined`, and I am the one who said no | same row reopens as `pending`, with me as requester |
+| `blocked` | refused, whichever side asks |
+
+Why these rules:
+
+- **Asking back accepts.** Two pending rows would leave both people waiting on each
+  other, and every "are A and B friends?" query would need to check both directions.
+- **Only the person who said no can reopen.** Stops someone spamming a request after
+  being turned down, but lets the one who declined change their mind. When they do,
+  the other person still has to say yes — it goes back to `pending`, not `accepted`.
+- **Blocked refuses both sides.** Unblocking will be its own action, not a side
+  effect of a friend request.
+
+Not handled: both users clicking at the same instant. Both see no row, and the
+second insert hits the unique index (`IntegrityError`) — so a duplicate row is
+impossible, but the second click gets an error. The endpoint can retry once it
+exists; marked with a `ponytail:` comment in the code.
+
+Decided by André, 2026-09-21. Tests: `backend/tests/test_friend_requests.py`.
+
+---
+
 ## Why one Alembic file per migration instead of a single file?
 
 Each file is one step of schema history, like a commit. Postgres records the last
