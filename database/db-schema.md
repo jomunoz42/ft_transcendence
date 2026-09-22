@@ -66,6 +66,7 @@ class User(Base):
     reactions: Mapped[list["Top10Reaction"]] = relationship(
         foreign_keys="Top10Reaction.author_id", back_populates="author", cascade="all, delete-orphan"
     )
+    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Profile(Base):
@@ -189,6 +190,19 @@ class Top10Reaction(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     author: Mapped["User"] = relationship(foreign_keys=[author_id], back_populates="reactions")
+
+
+class UserSession(Base):
+    # Named UserSession so it does not clash with SQLAlchemy's own Session.
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)  # SHA-256 of the cookie token; the raw token is never stored
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
 ```
 
 Notes:
@@ -199,6 +213,7 @@ Notes:
 - `CHECK (rank BETWEEN 1 AND 10)` is a native `CheckConstraint` on `Top10Entry` — also no raw SQL needed, unlike the Prisma version.
 - `Profile.is_top10_public` is the V1 privacy setting (added 2026-09-18, confirmed against `docs/myplaylist_simulator.py`, which shows exactly two states: public / friends-only). Visibility depends on *who is viewing*, so no DB constraint can enforce it — the column stores the flag, the route layer reads it. Boolean rather than a string enum because there are only two states; widen later if a third appears.
 - Comments and reactions (added 2026-09-21 in ticket 06, agreed with André): blank comments are rejected (`ck_top10_comments_body_not_blank`); reactions are only `like` or `dislike` (`ck_top10_reactions_value`); nobody can react to their own Top 10 (`ck_top10_reactions_not_own`) so self-likes cannot inflate rankings, while commenting on your own Top 10 stays allowed for replies. Max comment length is left to the endpoint. The `author` relationships name `foreign_keys` because both tables have two FKs to `users`.
+- `sessions` (added 2026-09-22 in auth ticket 02): one row per logged-in browser, backing the HttpOnly session cookie (cookie sessions, not JWT — see `.scratch/auth/spec.md`). Only the SHA-256 hash of the cookie token is stored, so a database leak exposes no live session; SHA-256 is enough here because the token is 32 random bytes, unlike a password. `token_hash` is unique, `expires_at` is required, and deleting a user deletes their sessions. The model is `UserSession` so it does not clash with SQLAlchemy's `Session`.
 - `Top10Comment.top10_owner_id` and `Top10Reaction.top10_owner_id` carry an FK to `users.id` with `ON DELETE CASCADE` (added 2026-09-18). They were FK-less only because the original Prisma model was; that rationale died with the Prisma switch. Without the FK, deleting a user cascades the rows they *wrote* but orphans every row written *on their Top 10*.
 
 ## Alembic setup

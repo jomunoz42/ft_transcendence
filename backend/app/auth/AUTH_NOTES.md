@@ -7,6 +7,34 @@ re-derived. Newest at the top. The plan and tickets live in `.scratch/auth/`
 
 ---
 
+## Passwords use Argon2 — why do session tokens use SHA-256?
+
+Two different secrets, two different jobs.
+
+| | Password | Session token |
+|---|---|---|
+| Chosen by | a human (`hunter22`) | the server, `secrets.token_urlsafe(32)` |
+| Guessable? | yes — attackers try common passwords | no — 2^256 possibilities |
+| Hashed with | Argon2 (slow, salted) | SHA-256 (fast, unsalted) |
+| Found by | the user's email, then verify | the hash itself (`WHERE token_hash = ...`) |
+
+- **Slowness only helps against guessing.** Argon2 is slow so an attacker cannot
+  try billions of likely passwords. A random 32-byte token has no "likely" values,
+  so slowness adds no protection.
+- **The token must be searchable.** Each request hashes the cookie and looks the
+  hash up in `sessions` with one indexed query. Argon2 salts every hash randomly,
+  so the same token never hashes the same twice: the server would have to run
+  Argon2 against every session row to find a match.
+- **It runs on every request.** Argon2 costs ~50–100 ms by design; SHA-256 costs
+  microseconds.
+
+Hashing the token at all still matters: a leaked `sessions` table holds only
+hashes, and a cookie needs the raw token, so no live session can be stolen.
+
+Decided in `.scratch/auth/spec.md` (2026-09-21); table built in ticket 02 (2026-09-22).
+
+---
+
 ## Why does `verify_password` return `False` instead of raising?
 
 `argon2-cffi`'s `verify()` never returns `False`. A wrong password raises

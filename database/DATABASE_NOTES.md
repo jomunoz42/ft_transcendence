@@ -8,7 +8,7 @@ things; this file covers why they are the way they are.
 
 ## What does each part of the database do?
 
-Seven tables, all defined in `backend/app/db/models.py` and created by the
+Eight tables, all defined in `backend/app/db/models.py` and created by the
 migrations in `backend/alembic/versions/` (full design: `database/db-schema.md`).
 Every rule below is enforced by Postgres itself, so a bug in the backend cannot
 store bad data — the insert fails with `IntegrityError` instead.
@@ -52,6 +52,16 @@ store bad data — the insert fails with `IntegrityError` instead.
 - Both tables point at two users: the Top 10's owner and the author. Deleting
   either one deletes the row.
 
+**Sessions** — `sessions.py`, auth ticket 02
+
+- `sessions`: one row per logged-in browser — the server-side half of the login
+  cookie. The browser holds the raw token; this table holds only its SHA-256
+  hash, the user, and when it expires.
+  - each token hash is unique
+  - every session has an expiry
+  - deleting a user deletes their sessions
+- The model is `UserSession`, so it does not clash with SQLAlchemy's `Session`.
+
 **Not enforced by the database, on purpose**
 
 - Who can *see* a Top 10 (`is_top10_public`): depends on who is looking, so the
@@ -59,7 +69,8 @@ store bad data — the insert fails with `IntegrityError` instead.
 - Max comment length: a product choice, validated by the endpoint.
 
 Tests for each part: `backend/tests/test_user_profile.py`, `test_top10.py`,
-`test_friendships.py`, `test_friend_requests.py`, `test_comments_reactions.py`.
+`test_friendships.py`, `test_friend_requests.py`, `test_comments_reactions.py`,
+`test_user_sessions.py`.
 
 ---
 
