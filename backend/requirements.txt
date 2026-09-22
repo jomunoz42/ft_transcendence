@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlalchemy
 alembic
 psycopg2-binary
+argon2-cffi
 
 # test dependencies
 pytest

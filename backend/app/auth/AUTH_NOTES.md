@@ -7,6 +7,25 @@ re-derived. Newest at the top. The plan and tickets live in `.scratch/auth/`
 
 ---
 
+## Why does `verify_password` return `False` instead of raising?
+
+`argon2-cffi`'s `verify()` never returns `False`. A wrong password raises
+`VerifyMismatchError`; a stored hash that is not a valid Argon2 string raises
+`InvalidHashError`. `backend/app/auth/passwords.py` catches both (plus the
+`VerificationError` base class) and returns `False`, so:
+
+- the login code is a plain `if not verify_password(...)`, with no library
+  exceptions leaking into auth logic;
+- a corrupt `password_hash` row means "login failed", not a 500 crash.
+
+The salt needs no column: it lives inside the hash string
+(`$argon2id$v=19$m=...,t=...,p=...$<salt>$<hash>`), which is why hashing the same
+password twice gives two different strings that both verify.
+
+Built in ticket 01 (2026-09-22); tests in `backend/tests/test_passwords.py`.
+
+---
+
 ## What is Argon2, and why hash passwords with it?
 
 A password is never stored. It is **hashed**: turned into scrambled text that
