@@ -19,13 +19,21 @@ from app.auth.websocket import authenticate_websocket
 
 from app.routes.v1.auth import router as auth_router
 
+from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from app.db import get_session
 from app.realtime.presence import (
     DB_TIMEOUT, PresenceResult, notify_presence_safely, send_presence_snapshot_safely,
 )
 
 logger = logging.getLogger(__name__)
+# ROUTES
+from app.routes.users import router as users_router
 
+app = FastAPI()
+app.include_router(users_router, prefix="/users")
 
 # ROUTES
 from app.routes.v1.settings import router as settings
