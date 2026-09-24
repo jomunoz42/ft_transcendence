@@ -16,11 +16,11 @@ TODO: Describe how the team organizes work, distributes tasks, reviews code, com
 
 | Area | Choice | Justification |
 | --- | --- | --- |
-| Frontend | TODO | TODO |
-| Backend | TODO | TODO |
-| Database | TODO | TODO |
+| Frontend | React + Vite + TypeScript | Component-based frontend with fast local development. |
+| Backend | Python + FastAPI | Lightweight API framework with WebSocket support. |
+| Database | PostgreSQL | Relational database for users, profiles, social data, and application state. |
 | Styling solution | TODO | TODO |
-| Deployment | Docker/Podman or equivalent | Required by the subject for single-command deployment. |
+| Deployment | Docker Compose | Runs the application services through a single development stack. |
 
 ## Database Schema
 
@@ -52,15 +52,46 @@ Total planned points: TODO
 
 ### Prerequisites
 
-TODO: List required software, tools, versions, and configuration.
+- Docker with Docker Compose
+- Make
 
 ### Environment
 
-Copy `.env.example` to `.env` and fill local values. The `.env` file must stay ignored by Git.
+Create the local environment file from the committed template:
+
+```bash
+cp .env.example .env
+```
+
+Fill in the local values in `.env`. This file contains local configuration and secrets and must remain ignored by Git.
 
 ### Run
 
-TODO: Add the single command used to deploy and run the complete application once the stack is chosen.
+Build and start the complete application:
+
+```bash
+make up
+```
+
+The development services are exposed at:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000`
+
+To stop the application:
+
+```bash
+make down
+```
+
+Useful development commands:
+
+```bash
+make logs
+make status
+make test
+make migrate
+```
 
 ## Resources
 
