@@ -1,12 +1,14 @@
-from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-
 from app.db import get_session
 
-app = FastAPI()
+# ROUTES
+from app.routes.users import router as users_router
 
+app = FastAPI()
+app.include_router(users_router, prefix="/users")
 
 @app.get("/health")
 def health(response: Response, session: Session = Depends(get_session)):
