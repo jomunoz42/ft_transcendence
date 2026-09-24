@@ -11,10 +11,6 @@ from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketD
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-
-from app.auth.constants import SESSION_COOKIE_NAME
-from app.auth.websocket import authenticate_websocket
-from starlette.concurrency import run_in_threadpool
 from app.db import get_session
 from app.realtime.config import allowed_websocket_origins
 from app.realtime.manager import ConnectionManager
