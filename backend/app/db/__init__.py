@@ -6,7 +6,7 @@ engine. SQLAlchemy models land in `models.py` alongside this.
 
 This package lives under `backend/` because Alembic and SQLAlchemy have to be
 importable by the app, but the database concern is owned here rather than by
-the backend as a whole. Design notes: `database/db-schema.md`.
+the backend as a whole. Usage guide: `docs/andre_docs_code/database.md`.
 """
 
 import os

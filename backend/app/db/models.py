@@ -1,4 +1,4 @@
-"""SQLAlchemy models — the schema designed in `database/db-schema.md`.
+"""SQLAlchemy models — the database schema; usage guide in `docs/andre_docs_code/database.md`.
 
 Alembic autogenerates migrations by comparing these definitions against the live
 database, so every model must be reachable from this module's imports.
