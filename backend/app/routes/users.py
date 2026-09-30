@@ -1,19 +1,31 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.db.models import User
-from pydantic import BaseModel
-
-class UserCreate(BaseModel):
-	username: str
+from sqlalchemy.orm import Session
+from app.db import get_session
 
 router = APIRouter()
+
+@router.get("/")
+def get_me(session: Session = Depends(get_session)):
+	users = session.query(User).all()
+	return users
 
 ################################################
 # me
 ################################################
 
 @router.get("/me")
-def get_me():
-	return {"username": "vicky"}
+def get_me(session: Session = Depends(get_session)):
+	user = session.query(User).filter(User.id == 1).first()
+	if not user:
+		return {"error": "not found"}
+	return {
+		"id": user.id,
+		"email": user.email,
+		"password_hash": user.password_hash,
+		"created_at": user.created_at,
+		"updated_at": user.updated_at,
+		}
 
 @router.post("/me")
 def post_me(data: UserCreate):
@@ -24,9 +36,10 @@ def patch_me(data: UserCreate):
 	return {"username": data.username}
 
 ################################################
-# others
+# users
 ################################################
 
-@router.get(f"/{id}")
-def get_users():
-	return {"username": id}
+@router.get("/{id}")
+def get_user(id:str):
+	print(id)
+	return {"username": users.to_dict()}

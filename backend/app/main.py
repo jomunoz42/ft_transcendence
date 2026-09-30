@@ -30,10 +30,10 @@ from app.realtime.presence import (
 
 logger = logging.getLogger(__name__)
 # ROUTES
-from app.routes.users import router as users_router
+from app.routes.users import router as users
 
 app = FastAPI()
-app.include_router(users_router, prefix="/users")
+app.include_router(users, prefix="/users")
 
 # ROUTES
 from app.routes.v1.settings import router as settings
