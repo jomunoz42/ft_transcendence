@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 
 # ROUTES
-from app.routes.users import router as users_router
+from app.routes.users import router as users
 
 app = FastAPI()
-app.include_router(users_router, prefix="/users")
+app.include_router(users, prefix="/users")
 
 @app.get("/health")
 def health(response: Response, session: Session = Depends(get_session)):
