@@ -16,6 +16,7 @@ from app.realtime.config import allowed_websocket_origins
 from app.realtime.manager import ConnectionManager
 from app.realtime.presence import DB_TIMEOUT
 
+<<<<<<< HEAD
 ALLOWED_WEBSOCKET_ORIGINS = {
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -39,6 +40,13 @@ from app.routes.v1.settings import router as settings
 app.include_router(settings, prefix="/api/v1/settings")
 from app.routes.v1.profiles import router as profiles
 app.include_router(profiles, prefix="/api/v1/profiles")
+=======
+# ROUTES
+from app.routes.users import router as users
+
+app = FastAPI()
+app.include_router(users, prefix="/users")
+>>>>>>> 587a0b5 (testing sqlalchemy)
 
 @app.get("/health")
 def health(response: Response, session: Session = Depends(get_session)):
