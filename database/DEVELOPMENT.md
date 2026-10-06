@@ -5,13 +5,14 @@ Database workspace for **ft_transcendence**, maintained by André.
 ## Stack
 
 - PostgreSQL 17 (Alpine image, unmodified)
-- SQLAlchemy 2.x + Alembic (integrated in ticket 03; migrations will live under `backend/`, since they are driven by the Python models)
+- SQLAlchemy 2.x + Alembic (models in `backend/app/db/`, migrations in `backend/alembic/versions/`)
 
 ## Contents
 
 | File | Purpose |
 | --- | --- |
-| `db-schema.md` | Schema design: the 7 tables, constraints, and the placeholder decisions behind them |
+| `../docs/andre_docs_code/database.md` | How to use the database: tables, rules, sessions, schema changes |
+| `../docs/andre_docs_code/whys.md` | Why the database and auth code are built this way |
 | `db-check.sh` | Runnable check for the Postgres container — connects with the `.env` credentials, writes a row, restarts the stack, verifies the row survived |
 
 ## Why `docker-compose.yml` is at the repo root, not here

@@ -1,4 +1,4 @@
-"""SQLAlchemy models — the schema designed in `database/db-schema.md`.
+"""SQLAlchemy models — the database schema; usage guide in `docs/andre_docs_code/database.md`.
 
 Alembic autogenerates migrations by comparing these definitions against the live
 database, so every model must be reachable from this module's imports.
@@ -55,6 +55,7 @@ class User(Base):
     reactions: Mapped[list["Top10Reaction"]] = relationship(
         foreign_keys="Top10Reaction.author_id", back_populates="author", cascade="all, delete-orphan"
     )
+    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Profile(Base):
@@ -174,3 +175,16 @@ class Top10Reaction(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     author: Mapped["User"] = relationship(foreign_keys=[author_id], back_populates="reactions")
+
+
+class UserSession(Base):
+    # Named UserSession so it does not clash with SQLAlchemy's own Session.
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)  # SHA-256 of the cookie token; the raw token is never stored
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
