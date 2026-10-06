@@ -36,6 +36,15 @@ class ConnectionManager:
         self.active_connections.remove(websocket)
         print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
 
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_json({
+                "type": "message",
+                "data": {
+                    "text": message
+                }
+            })
+
 
 manager = ConnectionManager()
 
@@ -47,7 +56,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             message = await websocket.receive_text()
-            await websocket.send_text(f"Backend received: {message}")
+            await manager.broadcast(message)
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
