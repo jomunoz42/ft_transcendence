@@ -47,7 +47,27 @@ except InvalidRegistration as error:
 - A soft-deleted user's email stays taken. Freeing it (by anonymizing the email on
   GDPR delete) is decided for later, not built.
 
-## Sessions
+## Sessions — `app.auth.sessions`
 
-The `sessions` table exists (see [`database.md`](database.md#tables)). The
-functions to create, check and end sessions are coming.
+```python
+from app.auth.sessions import end_session, start_session, user_for_token
+
+token = start_session(session, user)      # at login; put token in the cookie
+session.commit()
+
+user = user_for_token(session, token)     # on every request; None = not logged in
+
+end_session(session, token)               # at logout
+session.commit()
+```
+
+- `start_session(session, user) -> str`: the raw token goes only to the cookie.
+  The database stores its SHA-256 hash. Each login is its own session, so a
+  laptop and a phone stay logged in independently. It also deletes that user's
+  expired sessions, so dead rows do not pile up.
+- `user_for_token(session, token) -> User | None`: `None` when the token is
+  missing, unknown, expired (7 days, `SESSION_LIFETIME`), or the user is
+  soft-deleted.
+- `end_session(session, token)`: logs that one token out. Unknown or
+  already-ended tokens are ignored, so logging out twice is fine.
+- None of them commit; the caller does.
