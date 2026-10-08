@@ -134,6 +134,12 @@ away lets the unique index on `users.email` decide, and only one insert can win.
 The insert runs inside a savepoint, so the loser's failed insert is undone
 without breaking the rest of the caller's transaction.
 
+The `session.flush()` just before the savepoint writes the caller's own pending
+changes first. Without it, a broken change of theirs would fail inside the
+savepoint and be reported as `EmailTaken`. `send_friend_request` does the same.
+NUL characters are rejected up front because Postgres text cannot store them;
+they would otherwise crash as a 500 error.
+
 ### Why is the email check so loose?
 
 It only checks one `@`, something before it, a dot after it, and no spaces. Real

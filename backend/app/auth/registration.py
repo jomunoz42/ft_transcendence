@@ -24,8 +24,7 @@ class InvalidRegistration(Exception):
 
 
 def _looks_like_email(email: str) -> bool:
-    # Deliberately loose (no new dependency): one @, something before it, and a
-    # dot inside the part after it. Whether the address exists is not checked here.
+    """Loose format check: one @, something before it, a dot after it, no spaces or NUL."""
     local, at, domain = email.partition("@")
     return (
         bool(at and local)
@@ -34,11 +33,12 @@ def _looks_like_email(email: str) -> bool:
         and not domain.startswith(".")
         and not domain.endswith(".")
         and not any(c.isspace() for c in email)
-        and "\x00" not in email  # Postgres text cannot hold NUL
+        and "\x00" not in email
     )
 
 
 def register_user(session: Session, email: str, password: str, display_name: str) -> User:
+    """Create a user and their profile. Raises InvalidRegistration or EmailTaken; never commits."""
     email = email.strip().lower()
     if not _looks_like_email(email):
         raise InvalidRegistration("email", "not a valid email address")
@@ -51,10 +51,7 @@ def register_user(session: Session, email: str, password: str, display_name: str
         raise InvalidRegistration("display_name", "contains a NUL character")
     user = User(email=email, password_hash=hash_password(password))
     user.profile = Profile(display_name=display_name)
-    session.flush()  # write the caller's pending changes first, so their errors stay theirs
-    # Insert first and let the unique index decide, instead of checking first:
-    # two people registering the same email at once cannot both pass. The
-    # savepoint undoes only this insert, so the caller's transaction survives.
+    session.flush()  # keep: the caller's pending errors must not be blamed on this insert
     try:
         with session.begin_nested():
             session.add(user)

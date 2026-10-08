@@ -32,8 +32,6 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        # register_user lowercases; this stops any other insert path from storing
-        # "A@x.com" next to "a@x.com", which the plain unique index would allow.
         CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
     )
 
@@ -191,6 +189,6 @@ class UserSession(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)  # SHA-256 of the cookie token; the raw token is never stored
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)  # indexed for purging expired rows
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")

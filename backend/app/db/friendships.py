@@ -17,6 +17,7 @@ class FriendRequestNotAllowed(Exception):
 
 
 def _pair_row(session: Session, a: int, b: int) -> Friendship | None:
+    """The friendships row for this pair of users, whichever of the two asked."""
     return session.scalar(
         select(Friendship).where(
             or_(
@@ -28,6 +29,7 @@ def _pair_row(session: Session, a: int, b: int) -> Friendship | None:
 
 
 def send_friend_request(session: Session, requester_id: int, addressee_id: int) -> Friendship:
+    """Ask another user to be friends; the pair's history decides the result. Never commits."""
     existing = _pair_row(session, requester_id, addressee_id)
     if existing is not None:
         they_asked_first = existing.requester_id == addressee_id
@@ -47,14 +49,11 @@ def send_friend_request(session: Session, requester_id: int, addressee_id: int) 
         return existing
 
     request = Friendship(requester_id=requester_id, addressee_id=addressee_id)
-    session.flush()  # write the caller's pending changes first, so their errors stay theirs
+    session.flush()  # keep: the caller's pending errors must not be blamed on this insert
     try:
-        with session.begin_nested():  # a failed insert undoes only itself
+        with session.begin_nested():
             session.add(request)
     except IntegrityError:
-        # Either the other user asked at the same instant (their row now exists:
-        # rerun and the rules above handle it), or the request is impossible
-        # (asking yourself, or a user who does not exist).
         if _pair_row(session, requester_id, addressee_id) is not None:
             return send_friend_request(session, requester_id, addressee_id)
         raise FriendRequestNotAllowed("cannot ask yourself or a user who does not exist") from None

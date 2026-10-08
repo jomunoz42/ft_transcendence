@@ -84,6 +84,7 @@ def test_the_display_name_is_stored_stripped(session):
 
 
 def rows(session):
+    """How many users and profiles exist right now."""
     return tuple(session.scalar(select(func.count()).select_from(m)) for m in (User, Profile))
 
 
@@ -100,7 +101,7 @@ def test_a_rejected_registration_leaves_no_user_or_profile_behind(session):
 
 
 def test_a_broken_change_the_caller_left_pending_is_not_reported_as_email_taken(session):
-    session.add(Profile(user_id=-1, display_name="Orphan"))  # no such user: foreign key fails
+    session.add(Profile(user_id=-1, display_name="Orphan"))
 
     with pytest.raises(IntegrityError):
         register_user(session, "a@x.com", "hunter22", "André")

@@ -8,6 +8,9 @@ Runs after sessions. Three fixes, none changing existing data:
 - Indexes on foreign-key columns, which Postgres never creates on its own, and
   on `sessions.expires_at` for purging expired sessions.
 
+Autogenerate ignores server defaults, so DEFAULTS is written by hand and must
+match `server_default=` in models.py.
+
 Revision ID: 4ee1b8f18961
 Revises: a62c8bc4b82d
 Create Date: 2026-10-08 11:06:05.311828
@@ -25,8 +28,6 @@ down_revision: Union[str, Sequence[str], None] = 'a62c8bc4b82d'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-# (table, column, default). Autogenerate does not compare server defaults, so
-# these are listed by hand and must match `server_default=` in models.py.
 DEFAULTS = [
     ('users', 'is_verified', sa.text('false')),
     ('users', 'failed_login_count', sa.text('0')),
