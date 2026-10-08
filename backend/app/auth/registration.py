@@ -23,11 +23,17 @@ class InvalidRegistration(Exception):
         self.reason = reason
 
 
+def normalize_email(email: str) -> str:
+    """The form every email is stored and looked up in: stripped and lowercase."""
+    return email.strip().lower()
+
+
 def _looks_like_email(email: str) -> bool:
-    """Loose format check: one @, something before it, a dot after it, no spaces or NUL."""
+    """Loose format check: ASCII only, one @, something before it, a dot after it, no spaces or NUL."""
     local, at, domain = email.partition("@")
     return (
-        bool(at and local)
+        email.isascii()
+        and bool(at and local)
         and "@" not in domain
         and "." in domain
         and not domain.startswith(".")
@@ -39,7 +45,7 @@ def _looks_like_email(email: str) -> bool:
 
 def register_user(session: Session, email: str, password: str, display_name: str) -> User:
     """Create a user and their profile. Raises InvalidRegistration or EmailTaken; never commits."""
-    email = email.strip().lower()
+    email = normalize_email(email)
     if not _looks_like_email(email):
         raise InvalidRegistration("email", "not a valid email address")
     if not 8 <= len(password) <= 128:

@@ -146,9 +146,19 @@ It only checks one `@`, something before it, a dot after it, and no spaces. Real
 email rules are complicated and a strict check rejects valid addresses. The only
 way to know an address works is to send it a message, and that is not in V1.
 
+It does require ASCII. Python's `lower()` and Postgres's `lower()` can disagree
+on letters like `İ`, and then the stored email and the login lookup would not
+match. Real addresses are almost always ASCII.
+
 ### Why are passwords never stripped, when emails are?
 
 A space is a valid password character. Stripping it would make `" hunter22 "`
 and `"hunter22"` the same password, which is wrong. The 128-character limit
 just keeps the input bounded. It is not about speed: Argon2 takes about the same
 time for a short or a long password.
+
+### Why does a failed login for an unknown email still hash a password?
+
+A wrong password costs one Argon2 check (~50 ms). Without the dummy check, an
+unknown email would answer in ~1 ms, and the time alone would tell an attacker
+which emails are registered, even with the same error message.

@@ -39,8 +39,8 @@ except InvalidRegistration as error:
 - `register_user(session, email, password, display_name) -> User`: creates the
   user and their profile together. It flushes but **does not commit**; the caller
   commits.
-- Email is stripped and lowercased before it is stored, so `A@x.com` and `a@x.com`
-  are the same account. Password must be 8–128 characters and is never stripped.
+- Email must be ASCII. It is stripped and lowercased before it is stored, so
+  `A@x.com` and `a@x.com` are the same account. Password must be 8–128 characters and is never stripped.
   Display name is stripped and cannot be blank.
 - After `EmailTaken` or `InvalidRegistration`, nothing was written and the session
   is still usable.
@@ -71,3 +71,26 @@ session.commit()
 - `end_session(session, token)`: logs that one token out. Unknown or
   already-ended tokens are ignored, so logging out twice is fine.
 - None of them commit; the caller does.
+
+## Login — `app.auth.login`
+
+```python
+from app.auth.login import InvalidCredentials, authenticate
+
+try:
+    user = authenticate(session, email, password)
+except InvalidCredentials:
+    session.commit()          # keep the failed-attempt count, or lockout never triggers
+    ...                       # 401, same message for every reason
+token = start_session(session, user)
+session.commit()
+```
+
+- `authenticate(session, email, password) -> User`: the email is matched
+  whatever its case or surrounding spaces.
+- Unknown email, wrong password, locked account, and deleted account all raise
+  the same `InvalidCredentials`, and take the same time, so nobody can learn
+  which emails exist.
+- 5 wrong passwords lock the account for 15 minutes (`MAX_FAILED_ATTEMPTS`,
+  `LOCKOUT`). Attempts during the lock are refused and not counted. After it,
+  the user has 5 fresh tries. A correct password resets the count.

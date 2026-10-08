@@ -46,7 +46,7 @@ def test_a_taken_email_does_not_break_the_callers_transaction(session):
 
 @pytest.mark.parametrize(
     "email",
-    ["", "no-at-sign.com", "@x.com", "a@@x.com", "a@b@x.com", "a@x", "a@x.", "a@.com", "a b@x.com"],
+    ["", "no-at-sign.com", "@x.com", "a@@x.com", "a@b@x.com", "a@x", "a@x.", "a@.com", "a b@x.com", "İ@x.com", "andré@x.com"],
 )
 def test_a_malformed_email_is_rejected(session, email):
     with pytest.raises(InvalidRegistration):
