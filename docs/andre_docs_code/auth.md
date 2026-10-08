@@ -22,6 +22,31 @@ if not verify_password(typed_password, user.password_hash):
 
 Never store, log, or compare plain passwords anywhere else.
 
+## Registration — `app.auth.registration`
+
+```python
+from app.auth.registration import EmailTaken, InvalidRegistration, register_user
+
+try:
+    user = register_user(session, email, password, display_name)
+    session.commit()
+except EmailTaken:
+    ...  # 409: email already registered
+except InvalidRegistration as error:
+    ...  # 422: error.field ("email", "password", "display_name") and error.reason
+```
+
+- `register_user(session, email, password, display_name) -> User`: creates the
+  user and their profile together. It flushes but **does not commit**; the caller
+  commits.
+- Email is stripped and lowercased before it is stored, so `A@x.com` and `a@x.com`
+  are the same account. Password must be 8–128 characters and is never stripped.
+  Display name is stripped and cannot be blank.
+- After `EmailTaken` or `InvalidRegistration`, nothing was written and the session
+  is still usable.
+- A soft-deleted user's email stays taken. Freeing it (by anonymizing the email on
+  GDPR delete) is decided for later, not built.
+
 ## Sessions
 
 The `sessions` table exists (see [`database.md`](database.md#tables)). The

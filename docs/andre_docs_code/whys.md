@@ -114,3 +114,24 @@ The token is still hashed, so a leaked `sessions` table cannot be used to log in
 The library raises on a wrong password *and* on a corrupt stored hash. Returning
 `False` keeps login code a plain `if not verify_password(...)`, and a corrupt row
 means "login failed" instead of a 500 error.
+
+### Why does `register_user` insert and catch the error, instead of checking first?
+
+Checking "is this email free?" and then inserting leaves a gap: two people
+registering the same email at the same moment both see "free". Inserting straight
+away lets the unique index on `users.email` decide, and only one insert can win.
+The insert runs inside a savepoint, so the loser's failed insert is undone
+without breaking the rest of the caller's transaction.
+
+### Why is the email check so loose?
+
+It only checks one `@`, something before it, a dot after it, and no spaces. Real
+email rules are complicated and a strict check rejects valid addresses. The only
+way to know an address works is to send it a message, and that is not in V1.
+
+### Why are passwords never stripped, when emails are?
+
+A space is a valid password character. Stripping it would make `" hunter22 "`
+and `"hunter22"` the same password, which is wrong. The 128-character limit
+just keeps the input bounded. It is not about speed: Argon2 takes about the same
+time for a short or a long password.
