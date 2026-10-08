@@ -26,28 +26,28 @@ this page focuses on running and testing the backend transport.
 
 ## WebSocket Transport
 
-`/ws` provides authenticated, server-driven friend presence. The default
-transport URL is `ws://localhost:8000/ws`; browser login uses a Secure cookie,
-so use the HTTPS setup described in the contract when testing the full flow.
-Client text and binary frames are ignored; there is no echo or broadcast command.
+`ws://localhost:8000/ws` accepts WebSocket connections. Clients send plain text
+frames. Each received text frame is broadcast to every currently connected
+client, including its sender, as JSON:
 
-Start with the [frontend presence contract](../docs/presence-contract.md) for:
+```json
+{
+  "type": "message",
+  "data": {
+    "text": "the original text"
+  }
+}
+```
 
-- Development URLs, allowed origins, and browser cookie authentication.
-- Exact initial/replacement snapshot and online/offline event schemas.
-- Multiple tabs, session expiry, logout, and reconnect behavior.
-- A framework-independent JavaScript client and two-account manual test.
+Connections are accepted and stored in the process-wide `ConnectionManager`.
+A normal client disconnect, an unexpected endpoint error, or a failed send
+removes the affected connection. A failed send does not stop delivery to the
+other connected clients.
 
-The [realtime architecture](../docs/realtime.md) covers the process-local
-connection manager, serialized presence dispatcher, session validation,
-friendship refresh, timeouts, retries, and limitations. The
-[issue #7 audit](../docs/presence-audit.md) maps acceptance criteria to tests.
-
-Presence comes from registered sockets, not the profile `is_online` or
-`last_seen_at` columns. Use one backend worker. Authentication is checked before
-acceptance, before every outbound frame, and periodically while connected.
-Committed logout immediately disconnects sockets for that session; independent
-login sessions remain connected.
+This transport is currently anonymous: it does not authenticate connections,
+associate them with users, track presence, or support private messages. Its
+connection list exists only in memory and is not shared between processes, so
+it is suitable only for the current single-process development setup.
 
 ## Tests
 
@@ -63,24 +63,18 @@ Run only the transport tests without starting PostgreSQL:
 docker compose run --rm --no-deps backend pytest tests/test_websocket.py
 ```
 
-The transport tests exercise the FastAPI ASGI application in-process. The
-query tests use isolated SQLite databases; they are not PostgreSQL verification.
-Run the focused suite from `backend/` with:
-
-```bash
-DATABASE_URL=sqlite:///:memory: python -m pytest -q tests/test_connection_manager.py tests/test_websocket.py tests/test_websocket_auth.py tests/test_presence.py tests/test_presence_dispatcher.py tests/test_presence_resilience.py tests/test_realtime_config.py tests/test_websocket_postgres.py tests/test_realtime_lifecycle.py
-```
-
-With a PostgreSQL `DATABASE_URL`, `test_websocket_postgres.py` instead exercises
-real committed sessions, the cookie handshake and friendship visibility in a
-temporary schema (CREATE SCHEMA permission required). It skips explicitly for
-SQLite. It does not replace the project's PostgreSQL migration/session tests.
+The transport tests exercise the FastAPI ASGI application in-process. They do
+not open browsers or query a database.
 
 ## Manual WebSocket Check
 
-Follow the [two-account browser recipe](../docs/presence-contract.md#reproducible-two-account-browser-test-no-frontend-changes).
-It uses real login cookies, committed accepted friendships, and the documented
-presence frames. It does not require frontend changes or client broadcasts.
+1. Run `make up` from the repository root.
+2. Open `http://localhost:5173` in two browser tabs.
+3. Click **Connect WebSocket** in both tabs.
+4. Send a message from either tab and confirm that the same message appears in
+   both tabs, including the sender.
+5. Close one tab, then send another message from the remaining tab and confirm
+   that it still receives the broadcast.
 
 ## Run Locally
 

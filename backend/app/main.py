@@ -55,6 +55,35 @@ def health(response: Response, session: Session = Depends(get_session)):
     return {"status": "ok", "database": "ok"}
 
 
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket not in self.active_connections:
+            return
+        self.active_connections.remove(websocket)
+        print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
+
+    async def broadcast(self, message: str):
+        event = {
+            "type": "message",
+            "data": {
+                "text": message
+            }
+        }
+        for connection in self.active_connections.copy():
+            try:
+                await connection.send_json(event)
+            except WebSocketDisconnect:
+                self.disconnect(connection)
+
+
 manager = ConnectionManager()
 app.state.realtime_manager = manager
 
@@ -127,14 +156,6 @@ async def websocket_endpoint(websocket: WebSocket):
             # Presence is server-driven; there are no client commands yet.
 
     except WebSocketDisconnect:
-        pass
-
+        print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
     finally:
-        manager.disconnect(websocket, user_id)
-        tasks = [task for task in (receive_task, disconnected_task) if task is not None]
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-
-app.include_router(auth_router, prefix="/api/v1/auth")
+        manager.disconnect(websocket)
