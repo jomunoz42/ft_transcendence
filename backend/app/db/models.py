@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -30,12 +31,15 @@ class Base(DeclarativeBase):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    failed_login_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
+    failed_login_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), nullable=False)
     locked_until: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))  # GDPR soft-delete; NULL = active
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -66,8 +70,8 @@ class Profile(Base):
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String)
     bio: Mapped[str | None] = mapped_column(String)
-    is_top10_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # False = friends only; enforced in the route layer, not the DB
-    is_online: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # written by the WebSocket layer, read elsewhere
+    is_top10_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)  # False = friends only; enforced in the route layer, not the DB
+    is_online: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)  # written by the WebSocket layer, read elsewhere
     last_seen_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -87,7 +91,7 @@ class Song(Base):
     album: Mapped[str | None] = mapped_column(String)
     cover_url: Mapped[str | None] = mapped_column(String)
     duration_ms: Mapped[int | None] = mapped_column(Integer)
-    metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)  # provider-specific extras
+    metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, server_default=text("'{}'"), nullable=False)  # provider-specific extras
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -104,7 +108,7 @@ class Top10Entry(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    song_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("songs.id", ondelete="RESTRICT"), nullable=False)
+    song_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("songs.id", ondelete="RESTRICT"), nullable=False, index=True)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-10, enforced by the CHECK constraint above
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -123,9 +127,9 @@ class Friendship(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    requester_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    addressee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    status: Mapped[str] = mapped_column(String, default="pending", nullable=False)  # allowed values enforced by ck_friendships_status
+    requester_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    addressee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String, default="pending", server_default=text("'pending'"), nullable=False)  # allowed values enforced by ck_friendships_status
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -150,8 +154,8 @@ class Top10Comment(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    top10_owner_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # whose Top 10
-    author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # who wrote it
+    top10_owner_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # whose Top 10
+    author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # who wrote it
     body: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -169,7 +173,7 @@ class Top10Reaction(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     top10_owner_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # whose Top 10
-    author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # who reacted
+    author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # who reacted
     reaction: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -182,9 +186,9 @@ class UserSession(Base):
     __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)  # SHA-256 of the cookie token; the raw token is never stored
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")

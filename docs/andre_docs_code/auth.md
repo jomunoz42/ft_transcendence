@@ -22,7 +22,75 @@ if not verify_password(typed_password, user.password_hash):
 
 Never store, log, or compare plain passwords anywhere else.
 
-## Sessions
+## Registration — `app.auth.registration`
 
-The `sessions` table exists (see [`database.md`](database.md#tables)). The
-functions to create, check and end sessions are coming.
+```python
+from app.auth.registration import EmailTaken, InvalidRegistration, register_user
+
+try:
+    user = register_user(session, email, password, display_name)
+    session.commit()
+except EmailTaken:
+    ...  # 409: email already registered
+except InvalidRegistration as error:
+    ...  # 422: error.field ("email", "password", "display_name") and error.reason
+```
+
+- `register_user(session, email, password, display_name) -> User`: creates the
+  user and their profile together. It flushes but **does not commit**; the caller
+  commits.
+- Email must be ASCII. It is stripped and lowercased before it is stored, so
+  `A@x.com` and `a@x.com` are the same account. Password must be 8–128 characters and is never stripped.
+  Display name is stripped and cannot be blank.
+- After `EmailTaken` or `InvalidRegistration`, nothing was written and the session
+  is still usable.
+- A soft-deleted user's email stays taken. Freeing it (by anonymizing the email on
+  GDPR delete) is decided for later, not built.
+
+## Sessions — `app.auth.sessions`
+
+```python
+from app.auth.sessions import end_session, start_session, user_for_token
+
+token = start_session(session, user)      # at login; put token in the cookie
+session.commit()
+
+user = user_for_token(session, token)     # on every request; None = not logged in
+
+end_session(session, token)               # at logout
+session.commit()
+```
+
+- `start_session(session, user) -> str`: the raw token goes only to the cookie.
+  The database stores its SHA-256 hash. Each login is its own session, so a
+  laptop and a phone stay logged in independently. It also deletes that user's
+  expired sessions, so dead rows do not pile up.
+- `user_for_token(session, token) -> User | None`: `None` when the token is
+  missing, unknown, expired (7 days, `SESSION_LIFETIME`), or the user is
+  soft-deleted.
+- `end_session(session, token)`: logs that one token out. Unknown or
+  already-ended tokens are ignored, so logging out twice is fine.
+- None of them commit; the caller does.
+
+## Login — `app.auth.login`
+
+```python
+from app.auth.login import InvalidCredentials, authenticate
+
+try:
+    user = authenticate(session, email, password)
+except InvalidCredentials:
+    session.commit()          # keep the failed-attempt count, or lockout never triggers
+    ...                       # 401, same message for every reason
+token = start_session(session, user)
+session.commit()
+```
+
+- `authenticate(session, email, password) -> User`: the email is matched
+  whatever its case or surrounding spaces.
+- Unknown email, wrong password, locked account, and deleted account all raise
+  the same `InvalidCredentials`, and take the same time, so nobody can learn
+  which emails exist.
+- 5 wrong passwords lock the account for 15 minutes (`MAX_FAILED_ATTEMPTS`,
+  `LOCKOUT`). Attempts during the lock are refused and not counted. After it,
+  the user has 5 fresh tries. A correct password resets the count.

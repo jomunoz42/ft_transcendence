@@ -50,6 +50,8 @@ psql_do "SELECT 1;" >/dev/null || fail "psql could not connect with the .env cre
 
 echo "2/3 writing a row and reading it back"
 MARKER="ticket-01-$(date +%s)"
+trap 'psql_do "DROP TABLE IF EXISTS persistence_check;" >/dev/null 2>&1 \
+  || echo "WARNING: could not drop persistence_check; drop it by hand once postgres is up" >&2' EXIT
 psql_do "CREATE TABLE IF NOT EXISTS persistence_check (marker text primary key);" >/dev/null
 psql_do "INSERT INTO persistence_check (marker) VALUES ('$MARKER');" >/dev/null
 [ "$(psql_do "SELECT marker FROM persistence_check WHERE marker = '$MARKER';")" = "$MARKER" ] \
@@ -62,5 +64,4 @@ wait_ready
 [ "$(psql_do "SELECT marker FROM persistence_check WHERE marker = '$MARKER';")" = "$MARKER" ] \
   || fail "the row did not survive down/up - the named volume is not persisting data"
 
-psql_do "DROP TABLE persistence_check;" >/dev/null
 echo "PASS: postgres connects with the .env credentials and persists data across a restart"

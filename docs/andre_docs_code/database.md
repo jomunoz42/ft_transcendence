@@ -34,7 +34,7 @@ everything that belongs to them.
 
 | Model / table | What it holds | Rules |
 |---|---|---|
-| `User` / `users` | login data: email, password hash, lockout, soft-delete (`deleted_at`) | email unique |
+| `User` / `users` | login data: email, password hash, lockout, soft-delete (`deleted_at`) | email unique and lowercase |
 | `Profile` / `profiles` | one per user: display name, avatar, bio, `is_top10_public`, online status | one profile per user |
 | `Song` / `songs` | one row per track, shared by everyone | `(provider, provider_id)` unique, so a track is stored once |
 | `Top10Entry` / `top10_entries` | a user's ranked list, one row per (user, song, rank) | rank 1–10; one song per rank; no song twice; a song in someone's Top 10 cannot be deleted |
@@ -72,9 +72,11 @@ except FriendRequestNotAllowed:
 | `declined`, they said no to me | `FriendRequestNotAllowed` |
 | `declined`, I said no to them | reopens as `pending`, with me as requester |
 | `blocked` | `FriendRequestNotAllowed`, whoever asks |
+| (asking yourself, or a user id that does not exist) | `FriendRequestNotAllowed` |
 
-Known edge case: if both users click at the same instant, the second one gets an
-`IntegrityError`. A duplicate row is impossible, and retrying once fixes it.
+If both users ask at the same instant, the second request finds the first one's
+row and is handled by the rules above (asking back accepts). The caller never
+sees an `IntegrityError`, and the session keeps working after any refusal.
 
 ## Changing the schema
 

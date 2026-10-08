@@ -81,6 +81,17 @@ cannot store bad data. The insert fails with `IntegrityError` instead. Only rule
 that depend on *who is asking* live in code: who can see a Top 10 is decided by
 routes, and max comment length is decided by the endpoint.
 
+Three more rules follow the same idea:
+- **Emails must be lowercase** (`ck_users_email_lowercase`). The app lowercases,
+  but this stops any other insert path (Google login, a seed script) from
+  creating `A@x.com` next to `a@x.com`.
+- **Defaults live in the database too** (`server_default`), not only in Python,
+  so a seed script or a psql insert gets `failed_login_count = 0` and
+  `status = 'pending'` like the app does.
+- **Foreign-key columns are indexed.** Postgres never does this on its own, and
+  without the index, "all sessions of this user" or deleting a user reads the
+  whole table.
+
 ---
 
 ## Auth
@@ -114,3 +125,40 @@ The token is still hashed, so a leaked `sessions` table cannot be used to log in
 The library raises on a wrong password *and* on a corrupt stored hash. Returning
 `False` keeps login code a plain `if not verify_password(...)`, and a corrupt row
 means "login failed" instead of a 500 error.
+
+### Why does `register_user` insert and catch the error, instead of checking first?
+
+Checking "is this email free?" and then inserting leaves a gap: two people
+registering the same email at the same moment both see "free". Inserting straight
+away lets the unique index on `users.email` decide, and only one insert can win.
+The insert runs inside a savepoint, so the loser's failed insert is undone
+without breaking the rest of the caller's transaction.
+
+The `session.flush()` just before the savepoint writes the caller's own pending
+changes first. Without it, a broken change of theirs would fail inside the
+savepoint and be reported as `EmailTaken`. `send_friend_request` does the same.
+NUL characters are rejected up front because Postgres text cannot store them;
+they would otherwise crash as a 500 error.
+
+### Why is the email check so loose?
+
+It only checks one `@`, something before it, a dot after it, and no spaces. Real
+email rules are complicated and a strict check rejects valid addresses. The only
+way to know an address works is to send it a message, and that is not in V1.
+
+It does require ASCII. Python's `lower()` and Postgres's `lower()` can disagree
+on letters like `İ`, and then the stored email and the login lookup would not
+match. Real addresses are almost always ASCII.
+
+### Why are passwords never stripped, when emails are?
+
+A space is a valid password character. Stripping it would make `" hunter22 "`
+and `"hunter22"` the same password, which is wrong. The 128-character limit
+just keeps the input bounded. It is not about speed: Argon2 takes about the same
+time for a short or a long password.
+
+### Why does a failed login for an unknown email still hash a password?
+
+A wrong password costs one Argon2 check (~50 ms). Without the dummy check, an
+unknown email would answer in ~1 ms, and the time alone would tell an attacker
+which emails are registered, even with the same error message.
