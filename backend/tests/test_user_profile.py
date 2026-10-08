@@ -61,3 +61,12 @@ def test_a_top10_is_private_by_default_and_can_be_made_public(session):
     session.expire_all()
 
     assert session.get(User, user.id).profile.is_top10_public is True
+
+
+def test_an_email_with_uppercase_letters_cannot_be_stored(session):
+    # register_user lowercases emails; this stops any other insert path from
+    # storing "A@x.com" next to "a@x.com".
+    session.add(User(email="Mixed@MyPlaylist.test", password_hash="hash"))
+
+    with pytest.raises(IntegrityError):
+        session.flush()

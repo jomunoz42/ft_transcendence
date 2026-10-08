@@ -99,3 +99,15 @@ def test_nobody_can_ask_across_a_block(session, asker):
     with pytest.raises(FriendRequestNotAllowed):
         send_friend_request(session, requester.id, addressee.id)
     assert friendship.status == "blocked"
+
+
+@pytest.mark.parametrize("addressee", ["self", "unknown"])
+def test_an_impossible_request_is_refused_and_the_session_keeps_working(session, addressee):
+    alice = make_user(session, "alice@myplaylist.test")
+    addressee_id = alice.id if addressee == "self" else -1
+
+    with pytest.raises(FriendRequestNotAllowed):
+        send_friend_request(session, alice.id, addressee_id)
+
+    bob = make_user(session, "bob@myplaylist.test")
+    assert send_friend_request(session, alice.id, bob.id).status == "pending"

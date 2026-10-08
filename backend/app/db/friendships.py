@@ -6,6 +6,7 @@ turns FriendRequestNotAllowed into an error response.
 """
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import Friendship
@@ -15,15 +16,19 @@ class FriendRequestNotAllowed(Exception):
     """The pair's history forbids this request (declined by them, or blocked)."""
 
 
-def send_friend_request(session: Session, requester_id: int, addressee_id: int) -> Friendship:
-    existing = session.scalar(
+def _pair_row(session: Session, a: int, b: int) -> Friendship | None:
+    return session.scalar(
         select(Friendship).where(
             or_(
-                and_(Friendship.requester_id == requester_id, Friendship.addressee_id == addressee_id),
-                and_(Friendship.requester_id == addressee_id, Friendship.addressee_id == requester_id),
+                and_(Friendship.requester_id == a, Friendship.addressee_id == b),
+                and_(Friendship.requester_id == b, Friendship.addressee_id == a),
             )
         )
     )
+
+
+def send_friend_request(session: Session, requester_id: int, addressee_id: int) -> Friendship:
+    existing = _pair_row(session, requester_id, addressee_id)
     if existing is not None:
         they_asked_first = existing.requester_id == addressee_id
         if existing.status == "blocked":
@@ -41,11 +46,16 @@ def send_friend_request(session: Session, requester_id: int, addressee_id: int) 
             session.flush()
         return existing
 
-    # ponytail: if both users ask at the same instant, both see no row and the
-    # second insert hits ux_friendships_unordered_pair (IntegrityError). No duplicate
-    # row can exist; a retry finds the pending row and accepts it. Catch and retry
-    # here once the endpoint exists, if it shows up in practice.
     request = Friendship(requester_id=requester_id, addressee_id=addressee_id)
-    session.add(request)
-    session.flush()
+    session.flush()  # write the caller's pending changes first, so their errors stay theirs
+    try:
+        with session.begin_nested():  # a failed insert undoes only itself
+            session.add(request)
+    except IntegrityError:
+        # Either the other user asked at the same instant (their row now exists:
+        # rerun and the rules above handle it), or the request is impossible
+        # (asking yourself, or a user who does not exist).
+        if _pair_row(session, requester_id, addressee_id) is not None:
+            return send_friend_request(session, requester_id, addressee_id)
+        raise FriendRequestNotAllowed("cannot ask yourself or a user who does not exist") from None
     return request

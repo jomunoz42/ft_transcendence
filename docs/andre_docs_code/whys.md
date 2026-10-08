@@ -81,6 +81,17 @@ cannot store bad data. The insert fails with `IntegrityError` instead. Only rule
 that depend on *who is asking* live in code: who can see a Top 10 is decided by
 routes, and max comment length is decided by the endpoint.
 
+Three more rules follow the same idea:
+- **Emails must be lowercase** (`ck_users_email_lowercase`). The app lowercases,
+  but this stops any other insert path (Google login, a seed script) from
+  creating `A@x.com` next to `a@x.com`.
+- **Defaults live in the database too** (`server_default`), not only in Python,
+  so a seed script or a psql insert gets `failed_login_count = 0` and
+  `status = 'pending'` like the app does.
+- **Foreign-key columns are indexed.** Postgres never does this on its own, and
+  without the index, "all sessions of this user" or deleting a user reads the
+  whole table.
+
 ---
 
 ## Auth
