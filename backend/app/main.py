@@ -33,17 +33,23 @@ class ConnectionManager:
         print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
 
     def disconnect(self, websocket: WebSocket):
+        if websocket not in self.active_connections:
+            return
         self.active_connections.remove(websocket)
         print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
 
     async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            await connection.send_json({
-                "type": "message",
-                "data": {
-                    "text": message
-                }
-            })
+        event = {
+            "type": "message",
+            "data": {
+                "text": message
+            }
+        }
+        for connection in self.active_connections.copy():
+            try:
+                await connection.send_json(event)
+            except WebSocketDisconnect:
+                self.disconnect(connection)
 
 
 manager = ConnectionManager()
@@ -59,5 +65,6 @@ async def websocket_endpoint(websocket: WebSocket):
             await manager.broadcast(message)
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
         print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
+    finally:
+        manager.disconnect(websocket)
