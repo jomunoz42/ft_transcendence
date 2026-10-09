@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.db.models import Profile, User, Top10Entry, Song
@@ -99,3 +100,15 @@ def update_profile(profile_id: int, data: ProfileUpdate, session: Session, curre
 # 	except:
 # 		raise ErrorDeletingProfile("Error when deleting profile")
 # 	return None
+=======
+from app.db.models import Profile
+
+def create_profile(profile: Profile):
+	pass
+def read_profile(profile: Profile):
+	pass
+def update_profile(profile: Profile):
+	pass
+def delete_profile(profile: Profile):
+	pass
+>>>>>>> 2c38698 (before rebase)

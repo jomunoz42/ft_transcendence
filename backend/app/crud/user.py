@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from app.db.models import User, Profile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -48,3 +49,25 @@ def delete_user(user_id: int, session: Session):
 	except:
 		raise ErrorDeletingUser("error deleting user")
 	return None
+=======
+from app.db.models import User
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
+class UserSignup(BaseModel):
+	email: str
+	password: str
+
+def create_user(session: Session, data: UserSignup):
+	session.add(User(**UserSignup.model_dump()))
+	session.flush()
+
+def read_user(user: User):
+	pass
+
+def update_user(user: User):
+	pass
+
+def delete_user(user: User):
+	pass
+>>>>>>> 2c38698 (before rebase)
