@@ -11,6 +11,9 @@ from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketD
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
+from app.auth.constants import SESSION_COOKIE_NAME
+from app.auth.websocket import authenticate_websocket
 from app.db import get_session
 from app.realtime.config import allowed_websocket_origins
 from app.realtime.manager import ConnectionManager
@@ -94,14 +97,22 @@ async def websocket_endpoint(websocket: WebSocket):
     origin = websocket.headers.get("origin")
 
     if origin not in ALLOWED_WEBSOCKET_ORIGINS:
-        await manager.close_socket(websocket, code=1008)
+        await websocket.close(code=1008)
         return
     
     token = websocket.cookies.get(SESSION_COOKIE_NAME)
 
     if not token:
-        await manager.close_socket(websocket, code=1008)
+        await websocket.close(code=1008)
         return
+
+    user_id = await run_in_threadpool(authenticate_websocket, token)
+
+    if user_id is None:
+        await websocket.close(code=1008)
+        return
+
+    await manager.connect(websocket)
 
     try:
         async with asyncio.timeout(DB_TIMEOUT):
