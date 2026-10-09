@@ -40,3 +40,24 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+```
+
+## Coding practices
+
+#### Routes
+```python
+from fastapi import APIRouter, Depends, Response
+
+router = APIRouter()
+
+@router.get("/")
+def get_all():
+	...
+```
+
+#### HTTP Exceptions
+```python
+from fastapi import HTTPException
+
+raise HTTPException(status_code=404, detail="profile not found")
+```
