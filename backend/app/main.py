@@ -8,6 +8,9 @@ from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketD
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
+from app.auth.constants import SESSION_COOKIE_NAME
+from app.auth.websocket import authenticate_websocket
 from app.db import get_session
 
 # ROUTES
@@ -23,6 +26,10 @@ app.include_router(users,			prefix="/api/v1/users")
 app.include_router(profiles,		prefix="/api/v1/profiles")
 app.include_router(friendships,		prefix="/api/v1/friendships")
 app.include_router(top10s,			prefix="/api/v1/top10s")
+ALLOWED_WEBSOCKET_ORIGINS = {
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+}
 
 @app.get("/health")
 def health(response: Response, session: Session = Depends(get_session)):
@@ -73,6 +80,25 @@ manager = ConnectionManager()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+
+    origin = websocket.headers.get("origin")
+
+    if origin not in ALLOWED_WEBSOCKET_ORIGINS:
+        await websocket.close(code=1008)
+        return
+    
+    token = websocket.cookies.get(SESSION_COOKIE_NAME)
+
+    if not token:
+        await websocket.close(code=1008)
+        return
+
+    user_id = await run_in_threadpool(authenticate_websocket, token)
+
+    if user_id is None:
+        await websocket.close(code=1008)
+        return
+
     await manager.connect(websocket)
 
     try:
