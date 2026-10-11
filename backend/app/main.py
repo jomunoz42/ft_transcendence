@@ -48,32 +48,65 @@ def health(response: Response, session: Session = Depends(get_session)):
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active_connections: dict[int, set[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, user_id: int) -> bool:
         await websocket.accept()
-        self.active_connections.append(websocket)
+
+        was_offline = user_id not in self.active_connections
+
+        if was_offline:
+            self.active_connections[user_id] = set()
+
+        self.active_connections[user_id].add(websocket)
+
+        return was_offline
         print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
 
-    def disconnect(self, websocket: WebSocket):
-        if websocket not in self.active_connections:
-            return
-        self.active_connections.remove(websocket)
+
+    def disconnect(self, websocket: WebSocket, user_id: int) -> bool:
+        if user_id not in self.active_connections:
+            return False
+
+        connections = self.active_connections[user_id]
+
+        if websocket not in connections:
+            return False
+
+        connections.discard(websocket)
+
+        if not connections:
+            del self.active_connections[user_id]
+            print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
+            return True
+
         print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
+        return False
+
 
     async def broadcast(self, message: str):
-        event = {
-            "type": "message",
-            "data": {
-                "text": message
-            }
-        }
-        for connection in self.active_connections.copy():
+        event = {"type": "message", "data": {"text": message}}
+
+        for user_id, connections in list(self.active_connections.items()):
+            for connection in connections.copy():
+                try:
+                    await connection.send_json(event)
+                except WebSocketDisconnect:
+                    self.disconnect(connection, user_id)
+
+
+    async def send_to_user(self, user_id: int, event: dict):
+        connections = self.active_connections.get(user_id)
+
+        if not connections:
+            return
+
+        for connection in connections.copy():
             try:
                 await connection.send_json(event)
             except WebSocketDisconnect:
-                self.disconnect(connection)
-
+                self.disconnect(connection, user_id)
+                
 
 manager = ConnectionManager()
 
@@ -109,4 +142,4 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
     finally:
-        manager.disconnect(websocket)
+        manager.disconnect(websocket, user_id)
