@@ -1,17 +1,26 @@
 """User and tab bookkeeping, targeted delivery, and failed-send cleanup."""
 
+<<<<<<< HEAD
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, call
+=======
+from unittest.mock import MagicMock
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 
 import pytest
 from fastapi import WebSocket, WebSocketDisconnect
 
+<<<<<<< HEAD
 from app.realtime.manager import ConnectionManager
 from realtime_helpers import deliver_to_all
+=======
+from app.main import ConnectionManager
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 
 pytestmark = pytest.mark.anyio
 
 
+<<<<<<< HEAD
 @pytest.fixture(autouse=True)
 def presence_notification(monkeypatch):
     monkeypatch.setattr(ConnectionManager, "check_session", AsyncMock(return_value=True))
@@ -35,6 +44,8 @@ def presence_notification(monkeypatch):
     return offline
 
 
+=======
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 async def test_first_connection_per_user_goes_online_and_extra_tabs_do_not():
     manager = ConnectionManager()
     alice, alice_tab, bob, bob_tab = [MagicMock(spec=WebSocket) for _ in range(4)]
@@ -81,13 +92,21 @@ async def test_failed_accept_does_not_register_a_connection():
     assert manager.active_connections == {}
 
 
+<<<<<<< HEAD
 async def test_server_delivery_reaches_multiple_users_and_every_tab():
+=======
+async def test_broadcast_reaches_multiple_users_and_every_tab():
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
     manager = ConnectionManager()
     sockets = [MagicMock(spec=WebSocket) for _ in range(4)]
     for user_id, socket in zip((1, 1, 2, 2), sockets):
         await manager.connect(socket, user_id)
 
+<<<<<<< HEAD
     await deliver_to_all(manager, "hello 🎵")
+=======
+    await manager.broadcast("hello 🎵")
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 
     for socket in sockets:
         socket.send_json.assert_awaited_once_with(
@@ -111,9 +130,15 @@ async def test_send_to_user_reaches_every_target_tab_and_no_other_user():
     assert manager.active_connections == {1: {alice, alice_tab}, 2: {bob, bob_tab}}
 
 
+<<<<<<< HEAD
 async def test_server_delivery_to_offline_users_is_harmless():
     manager = ConnectionManager()
     await deliver_to_all(manager, "nobody here")
+=======
+async def test_sending_to_offline_users_and_broadcasting_without_connections_are_harmless():
+    manager = ConnectionManager()
+    await manager.broadcast("nobody here")
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
     await manager.send_to_user(999, {"type": "presence"})
     assert manager.active_connections == {}
 
@@ -124,11 +149,19 @@ async def test_server_delivery_to_offline_users_is_harmless():
     assert manager.active_connections == {1: {socket}}
 
 
+<<<<<<< HEAD
 @pytest.mark.parametrize("delivery", ["server_fanout", "send_to_user"])
 @pytest.mark.parametrize("failure", [WebSocketDisconnect, OSError, RuntimeError])
 @pytest.mark.parametrize("healthy_tab", [False, True], ids=["last-tab", "healthy-sibling"])
 async def test_failed_send_removes_only_broken_sockets_and_delivery_continues(
     delivery, failure, healthy_tab, presence_notification,
+=======
+@pytest.mark.parametrize("delivery", ["broadcast", "send_to_user"])
+@pytest.mark.parametrize("failure", [WebSocketDisconnect, OSError])
+@pytest.mark.parametrize("healthy_tab", [False, True], ids=["last-tab", "healthy-sibling"])
+async def test_failed_send_removes_only_broken_sockets_and_delivery_continues(
+    delivery, failure, healthy_tab,
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 ):
     manager = ConnectionManager()
     broken, sibling, other = [MagicMock(spec=WebSocket) for _ in range(3)]
@@ -139,8 +172,13 @@ async def test_failed_send_removes_only_broken_sockets_and_delivery_continues(
     await manager.connect(other, 2)
     event = {"type": "message", "data": {"text": "delivered"}}
 
+<<<<<<< HEAD
     if delivery == "server_fanout":
         await deliver_to_all(manager, "delivered")
+=======
+    if delivery == "broadcast":
+        await manager.broadcast("delivered")
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
         other.send_json.assert_awaited_once_with(event)
     else:
         await manager.send_to_user(1, event)
@@ -155,14 +193,20 @@ async def test_failed_send_removes_only_broken_sockets_and_delivery_continues(
         assert manager.active_connections == {2: {other}}
 
     # Subsequent delivery must not retry a socket that was already removed.
+<<<<<<< HEAD
     if delivery == "server_fanout":
         await deliver_to_all(manager, "delivered")
+=======
+    if delivery == "broadcast":
+        await manager.broadcast("delivered")
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
         assert other.send_json.await_count == 2
     else:
         await manager.send_to_user(1, event)
     assert broken.send_json.await_count == 1
     if healthy_tab:
         assert sibling.send_json.await_count == 2
+<<<<<<< HEAD
         presence_notification.assert_not_called()
     else:
         presence_notification.assert_called_once_with(manager, 1, False)
@@ -285,3 +329,5 @@ async def test_session_logout_bounds_stalled_tab_and_preserves_other_login(stall
             lock.release()
         await asyncio.gather(logging_out, return_exceptions=True)
         await manager.stop()
+=======
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)

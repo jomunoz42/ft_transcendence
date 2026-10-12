@@ -15,9 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
 from app.db import get_session
-from app.realtime.config import allowed_websocket_origins
-from app.realtime.manager import ConnectionManager
-from app.realtime.presence import DB_TIMEOUT
+from app.realtime.presence import notify_presence_safely
 
 ALLOWED_WEBSOCKET_ORIGINS = {
     "http://localhost:5173",
@@ -103,7 +101,7 @@ class ConnectionManager:
             for connection in connections.copy():
                 try:
                     await connection.send_json(event)
-                except WebSocketDisconnect:
+                except (WebSocketDisconnect, OSError):
                     self.disconnect(connection, user_id)
 
 
@@ -116,9 +114,9 @@ class ConnectionManager:
         for connection in connections.copy():
             try:
                 await connection.send_json(event)
-            except WebSocketDisconnect:
+            except (WebSocketDisconnect, OSError):
                 self.disconnect(connection, user_id)
-                
+
 
 manager = ConnectionManager()
 app.state.realtime_manager = manager
@@ -145,61 +143,23 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008)
         return
 
-    await manager.connect(websocket)
+    became_online = await manager.connect(websocket, user_id)
+
+    
 
     try:
-        async with asyncio.timeout(DB_TIMEOUT):
-            user_id = await run_in_threadpool(authenticate_websocket, token)
-    except (SQLAlchemyError, TimeoutError):
-        logger.error("WebSocket authentication database unavailable")
-        await manager.close_socket(websocket)
-        return
+        if became_online:
+            await notify_presence_safely(manager, user_id, True)
 
-    if user_id is None:
-        await manager.close_socket(websocket, code=1008)
-        return
-
-    receive_task = disconnected_task = None
-    try:
-        await manager.connect(websocket, user_id)
-        manager.session_tokens[websocket] = token
-        if not await manager.initialize(websocket, user_id):
-            return
-
-        disconnected = manager.disconnected.get(websocket)
-        if disconnected is None:
-            return
-        disconnected_task = asyncio.create_task(disconnected.wait())
-        loop = asyncio.get_running_loop()
-        next_session_check = loop.time() + manager.SESSION_REVALIDATE_INTERVAL
-        next_friendship_refresh = loop.time() + manager.FRIENDSHIP_REFRESH_INTERVAL
-        while websocket in manager.active_connections.get(user_id, set()):
-            # Independent deadlines; incoming traffic cannot postpone either.
-            if loop.time() >= next_session_check:
-                if not await manager.revalidate(websocket, user_id):
-                    return
-                next_session_check = loop.time() + manager.SESSION_REVALIDATE_INTERVAL
-            if loop.time() >= next_friendship_refresh:
-                manager.schedule_snapshot(websocket, user_id)
-                next_friendship_refresh = loop.time() + manager.FRIENDSHIP_REFRESH_INTERVAL
-            if receive_task is None:
-                receive_task = asyncio.create_task(websocket.receive())
-            deadline = min(next_session_check, next_friendship_refresh)
-            done, _ = await asyncio.wait(
-                (receive_task, disconnected_task),
-                timeout=max(0, deadline - loop.time()),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            if disconnected_task in done:
-                break
-            if receive_task in done:
-                message = receive_task.result()
-                receive_task = None
-                if message["type"] == "websocket.disconnect":
-                    break
-            # Presence is server-driven; there are no client commands yet.
+        while True:
+            message = await websocket.receive_text()
+            await manager.broadcast(message)
 
     except WebSocketDisconnect:
         print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
+
     finally:
-        manager.disconnect(websocket, user_id)
+        became_offline = manager.disconnect(websocket, user_id)
+
+        if became_offline:
+            await notify_presence_safely(manager, user_id, False)

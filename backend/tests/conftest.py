@@ -24,6 +24,12 @@ def anyio_backend():
 
 
 @pytest.fixture
+def anyio_backend():
+    # The WebSocket ASGI harness and application run on asyncio.
+    return "asyncio"
+
+
+@pytest.fixture
 def session():
     connection = engine.connect()
     transaction = connection.begin()

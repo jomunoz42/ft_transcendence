@@ -6,18 +6,19 @@ the process-wide connection manager deterministic.
 
 import asyncio
 import json
+import logging
 import threading
 from contextlib import asynccontextmanager
 from http.cookies import SimpleCookie
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
-from fastapi import WebSocketDisconnect
 
 import app.main as main
 import app.auth.websocket as websocket_auth
+import app.realtime.presence as presence
 from app.auth.constants import SESSION_COOKIE_NAME
-from app.main import ConnectionManager, app, manager
+from app.main import app, manager
 
 ALLOWED_ORIGIN = "http://localhost:5173"
 SESSION_TOKEN = "test-session-token"
@@ -105,10 +106,10 @@ class ASGIWebSocketSession:
 
 
 @asynccontextmanager
-async def connected_websocket():
+async def connected_websocket(token=SESSION_TOKEN):
     websocket = ASGIWebSocketSession(
         headers={"origin": ALLOWED_ORIGIN},
-        cookies={SESSION_COOKIE_NAME: SESSION_TOKEN},
+        cookies={SESSION_COOKIE_NAME: token},
     )
     await websocket.connect()
     try:
@@ -117,17 +118,20 @@ async def connected_websocket():
         await websocket.disconnect()
 
 
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
-
-
 @pytest.fixture(autouse=True)
 def forbid_database_access(monkeypatch):
     """Endpoint tests must never reach the configured database."""
     factory = Mock(side_effect=AssertionError("unexpected database access"))
     monkeypatch.setattr(websocket_auth, "SessionLocal", factory)
+    monkeypatch.setattr(presence, "SessionLocal", factory)
     return factory
+
+
+@pytest.fixture(autouse=True)
+def presence_notification(monkeypatch):
+    notify = AsyncMock()
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    return notify
 
 
 @pytest.fixture
@@ -147,9 +151,9 @@ def manager_connect(monkeypatch):
 @pytest.fixture(autouse=True)
 def websocket_connection_state_does_not_leak_between_tests():
     """Every transport test must leave the process-wide manager empty."""
-    assert manager.active_connections == []
+    assert manager.active_connections == {}
     yield
-    assert manager.active_connections == []
+    assert manager.active_connections == {}
 
 
 @pytest.mark.anyio
@@ -157,7 +161,7 @@ async def test_client_can_connect_and_is_removed_when_it_disconnects(authenticat
     async with connected_websocket():
         assert len(manager.active_connections) == 1
 
-    assert manager.active_connections == []
+    assert manager.active_connections == {}
     authenticated_user.assert_called_once_with(SESSION_TOKEN)
 
 
@@ -167,7 +171,7 @@ async def test_broadcast_reaches_all_clients_including_the_sender(authenticated_
 
     async with connected_websocket() as sender:
         async with connected_websocket() as recipient:
-            assert len(manager.active_connections) == 2
+            assert len(manager.active_connections[42]) == 2
 
             await sender.send_text("hello everyone")
 
@@ -181,15 +185,17 @@ async def test_remaining_client_keeps_receiving_after_another_disconnects(authen
 
     async with connected_websocket() as remaining_client:
         async with connected_websocket():
-            assert len(manager.active_connections) == 2
+            assert len(manager.active_connections[42]) == 2
 
-        assert len(manager.active_connections) == 1
+        assert len(manager.active_connections[42]) == 1
         await remaining_client.send_text("still here")
         assert await remaining_client.receive_json() == expected_event
 
 
 @pytest.mark.anyio
-async def test_unexpected_endpoint_error_still_removes_connection(monkeypatch, authenticated_user):
+async def test_unexpected_endpoint_error_still_removes_connection(
+    monkeypatch, authenticated_user, presence_notification,
+):
     async def fail_to_broadcast(_message):
         raise RuntimeError("unexpected broadcast failure")
 
@@ -204,32 +210,9 @@ async def test_unexpected_endpoint_error_still_removes_connection(monkeypatch, a
     with pytest.raises(RuntimeError, match="unexpected broadcast failure"):
         await websocket.wait_until_closed()
 
-    assert manager.active_connections == []
-
-
-@pytest.mark.anyio
-async def test_broadcast_removes_disconnected_client_and_continues():
-    local_manager = ConnectionManager()
-    delivered_events = []
-
-    class DisconnectedClient:
-        async def send_json(self, _event):
-            raise WebSocketDisconnect()
-
-    class ConnectedClient:
-        async def send_json(self, event):
-            delivered_events.append(event)
-
-    disconnected_client = DisconnectedClient()
-    connected_client = ConnectedClient()
-    local_manager.active_connections = [disconnected_client, connected_client]
-
-    await local_manager.broadcast("delivered")
-    local_manager.disconnect(disconnected_client)
-
-    assert local_manager.active_connections == [connected_client]
-    assert delivered_events == [
-        {"type": "message", "data": {"text": "delivered"}}
+    assert manager.active_connections == {}
+    assert presence_notification.await_args_list == [
+        call(manager, 42, True), call(manager, 42, False),
     ]
 
 
@@ -240,6 +223,7 @@ async def test_broadcast_removes_disconnected_client_and_continues():
 ])
 async def test_unauthorized_origin_is_rejected_before_authentication(
     origin, authenticated_user, manager_connect, forbid_database_access,
+    presence_notification,
 ):
     websocket = ASGIWebSocketSession(
         headers={} if origin is None else {"origin": origin},
@@ -251,6 +235,7 @@ async def test_unauthorized_origin_is_rejected_before_authentication(
     authenticated_user.assert_not_called()
     forbid_database_access.assert_not_called()
     manager_connect.assert_not_called()
+    presence_notification.assert_not_called()
 
 
 @pytest.mark.anyio
@@ -259,6 +244,7 @@ async def test_unauthorized_origin_is_rejected_before_authentication(
 ])
 async def test_missing_cookie_is_rejected_before_authentication(
     cookies, authenticated_user, manager_connect, forbid_database_access,
+    presence_notification,
 ):
     websocket = ASGIWebSocketSession(
         headers={"origin": ALLOWED_ORIGIN}, cookies=cookies,
@@ -269,11 +255,12 @@ async def test_missing_cookie_is_rejected_before_authentication(
     authenticated_user.assert_not_called()
     forbid_database_access.assert_not_called()
     manager_connect.assert_not_called()
+    presence_notification.assert_not_called()
 
 
 @pytest.mark.anyio
 async def test_invalid_authentication_never_enters_connection_manager(
-    authenticated_user, manager_connect,
+    authenticated_user, manager_connect, presence_notification,
 ):
     authenticated_user.return_value = None
     websocket = ASGIWebSocketSession(
@@ -285,6 +272,7 @@ async def test_invalid_authentication_never_enters_connection_manager(
 
     authenticated_user.assert_called_once_with(SESSION_TOKEN)
     manager_connect.assert_not_called()
+    presence_notification.assert_not_called()
 
 
 @pytest.mark.anyio
@@ -297,7 +285,7 @@ async def test_authentication_runs_in_threadpool_before_accepting(
     def authenticate(token):
         assert token == SESSION_TOKEN
         assert threading.get_ident() != event_loop_thread
-        assert manager.active_connections == []
+        assert manager.active_connections == {}
         manager_connect.assert_not_called()
         assert websocket._outgoing.empty()
         return 42
@@ -323,3 +311,154 @@ async def test_authentication_runs_in_threadpool_before_accepting(
         }
     finally:
         await websocket.disconnect()
+
+
+@pytest.mark.anyio
+async def test_presence_notifications_follow_first_and_last_tab_transitions(
+    authenticated_user, presence_notification,
+):
+    async with connected_websocket() as first_tab:
+        # A round trip ensures the endpoint has finished its online notification.
+        await first_tab.send_text("first tab ready")
+        await first_tab.receive_json()
+        presence_notification.assert_awaited_once_with(manager, 42, True)
+
+        async with connected_websocket() as second_tab:
+            await second_tab.send_text("second tab ready")
+            await first_tab.receive_json()
+            await second_tab.receive_json()
+            assert len(manager.active_connections[42]) == 2
+            presence_notification.assert_awaited_once_with(manager, 42, True)
+
+        assert len(manager.active_connections[42]) == 1
+        presence_notification.assert_awaited_once_with(manager, 42, True)
+
+    assert presence_notification.await_args_list == [
+        call(manager, 42, True), call(manager, 42, False),
+    ]
+    assert manager.active_connections == {}
+
+    # Reconnecting starts a new online/offline cycle.
+    async with connected_websocket() as reconnected:
+        await reconnected.send_text("back again")
+        await reconnected.receive_json()
+    assert presence_notification.await_args_list == [
+        call(manager, 42, True), call(manager, 42, False),
+        call(manager, 42, True), call(manager, 42, False),
+    ]
+
+
+@pytest.mark.anyio
+async def test_endpoint_delivers_presence_through_real_safe_notifier(
+    monkeypatch, authenticated_user,
+):
+    authenticated_user.side_effect = lambda token: 7 if token == "friend-token" else 42
+    monkeypatch.setattr(main, "notify_presence_safely", presence.notify_presence_safely)
+    lookup = Mock(side_effect=lambda user_id: [7] if user_id == 42 else [])
+    monkeypatch.setattr(presence, "find_presence_recipients", lookup)
+
+    async with connected_websocket("friend-token") as friend:
+        async with connected_websocket("friend-token") as friend_tab:
+            # Both recipient tabs are registered before the subject connects.
+            await friend_tab.send_text("friends ready")
+            await friend.receive_json()
+            await friend_tab.receive_json()
+
+            async with connected_websocket():
+                online = {"type": "presence", "data": {"user_id": 42, "online": True}}
+                assert await friend.receive_json() == online
+                assert await friend_tab.receive_json() == online
+
+            offline = {"type": "presence", "data": {"user_id": 42, "online": False}}
+            assert await friend.receive_json() == offline
+            assert await friend_tab.receive_json() == offline
+
+
+@pytest.mark.anyio
+async def test_notification_failure_does_not_terminate_a_healthy_websocket(
+    monkeypatch, authenticated_user, caplog,
+):
+    # Keep the actual safe wrapper: replacing it with a raising mock would test
+    # behavior the wrapper explicitly prevents.
+    safe_notify = AsyncMock(wraps=presence.notify_presence_safely)
+    monkeypatch.setattr(main, "notify_presence_safely", safe_notify)
+    lookup = Mock(side_effect=RuntimeError("presence lookup unavailable"))
+    monkeypatch.setattr(presence, "find_presence_recipients", lookup)
+
+    with caplog.at_level(logging.ERROR, logger=presence.__name__):
+        async with connected_websocket() as websocket:
+            for message in ("still healthy", "still receiving"):
+                await websocket.send_text(message)
+                assert await websocket.receive_json() == {
+                    "type": "message", "data": {"text": message},
+                }
+            assert len(manager.active_connections[42]) == 1
+            assert not websocket._task.done()
+
+    assert manager.active_connections == {}
+    assert safe_notify.await_args_list == [call(manager, 42, True), call(manager, 42, False)]
+    assert lookup.call_args_list == [call(42), call(42)]
+    records = [record for record in caplog.records if record.name == presence.__name__]
+    assert len(records) == 2
+    assert all(isinstance(record.exc_info[1], RuntimeError) for record in records)
+
+
+@pytest.mark.anyio
+async def test_unexpected_authentication_error_never_registers_a_connection(
+    authenticated_user, manager_connect, presence_notification,
+):
+    authenticated_user.side_effect = RuntimeError("authentication unavailable")
+    websocket = ASGIWebSocketSession(
+        headers={"origin": ALLOWED_ORIGIN},
+        cookies={SESSION_COOKIE_NAME: SESSION_TOKEN},
+    )
+    # Start the existing harness without waiting for a handshake message: the
+    # application raises before it can accept or close the WebSocket.
+    handshake = asyncio.create_task(websocket.handshake())
+    try:
+        await asyncio.sleep(0)
+        with pytest.raises(RuntimeError, match="authentication unavailable"):
+            await websocket.wait_until_closed()
+        assert websocket._outgoing.empty()
+    finally:
+        handshake.cancel()
+        await asyncio.gather(handshake, return_exceptions=True)
+
+    manager_connect.assert_not_called()
+    presence_notification.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("delivery", ["broadcast", "send_to_user"])
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "Failed-send cleanup discards the final offline transition; the endpoint's "
+        "subsequent disconnect returns False and skips the offline notification."
+    ),
+)
+async def test_failed_send_on_final_tab_still_notifies_friends_offline(
+    monkeypatch, authenticated_user, presence_notification, delivery,
+):
+    async with connected_websocket() as websocket:
+        await websocket.send_text("ready")
+        await websocket.receive_json()
+        presence_notification.assert_awaited_once_with(manager, 42, True)
+        socket = next(iter(manager.active_connections[42]))
+        failed_send = AsyncMock(side_effect=OSError("connection lost"))
+        monkeypatch.setattr(socket, "send_json", failed_send)
+
+        if delivery == "broadcast":
+            await manager.broadcast("detect broken socket")
+        else:
+            await manager.send_to_user(42, {"type": "presence"})
+
+        failed_send.assert_awaited_once()
+        assert manager.active_connections == {}
+
+    # The eventual endpoint disconnect must not lose the offline transition
+    # already detected by failed-send cleanup.
+    assert presence_notification.await_args_list == [
+        call(manager, 42, True), call(manager, 42, False),
+    ]

@@ -7,16 +7,25 @@ These tests verify queries, not PostgreSQL migration compatibility.
 """
 
 import asyncio
+<<<<<<< HEAD
 import datetime
 import logging
 from unittest.mock import AsyncMock, MagicMock, Mock, call
 
 import pytest
 from fastapi import WebSocket, WebSocketDisconnect
+=======
+import logging
+from unittest.mock import AsyncMock, MagicMock, Mock
+
+import pytest
+from fastapi import WebSocket
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base, Friendship, User
+<<<<<<< HEAD
 from app.realtime.manager import ConnectionManager
 from realtime_helpers import deliver_to_all
 import app.realtime.manager as realtime_manager
@@ -49,6 +58,12 @@ def ready_connections(monkeypatch):
     monkeypatch.setattr(ConnectionManager, "connect", ready_connect)
 
 
+=======
+from app.main import ConnectionManager
+import app.realtime.presence as presence
+
+
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 @pytest.fixture
 def presence_database(tmp_path, monkeypatch):
     # A file lets the real threadpool lookup open its own SQLite connection.
@@ -90,7 +105,11 @@ def test_only_accepted_friends_in_either_direction_are_recipients(
     presence_database, user_id, expected,
 ):
     with presence_database() as session:
+<<<<<<< HEAD
         assert sorted([friend.id for friend in presence.list_friends(session, user_id)]) == expected
+=======
+        assert sorted(presence.get_presence_recipients(session, user_id)) == expected
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 
 
 @pytest.mark.parametrize("user_id", [4, 5, 6, 7, 8, 9, 12, 999], ids=[
@@ -99,7 +118,11 @@ def test_only_accepted_friends_in_either_direction_are_recipients(
 ])
 def test_users_without_accepted_friends_have_no_recipients(presence_database, user_id):
     with presence_database() as session:
+<<<<<<< HEAD
         assert [friend.id for friend in presence.list_friends(session, user_id)] == []
+=======
+        assert presence.get_presence_recipients(session, user_id) == []
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
 
 
 def test_find_presence_recipients_uses_and_closes_its_own_session(presence_database, monkeypatch):
@@ -224,6 +247,7 @@ async def test_notify_presence_safely_logs_and_suppresses_errors(
     assert records[0].levelno == logging.ERROR
     assert records[0].getMessage() == f"Failed to notify presence for user 1 (online={online})"
     assert records[0].exc_info[1] is error
+<<<<<<< HEAD
 
 
 @pytest.mark.anyio
@@ -434,3 +458,5 @@ async def test_deleted_friends_are_excluded_from_snapshots_and_delivery(presence
     friend.send_json.assert_awaited_once_with({
         "type": "presence", "data": {"user_id": 1, "online": True},
     })
+=======
+>>>>>>> 9bb19c2 (feat(websocket): add friendship-based presence notifications)
