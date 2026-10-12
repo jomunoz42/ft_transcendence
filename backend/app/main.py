@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
 from app.db import get_session
+from app.realtime.presence import notify_presence_safely
 
 # ROUTES
 from app.routes.v1.settings import router as settings
@@ -91,7 +92,7 @@ class ConnectionManager:
             for connection in connections.copy():
                 try:
                     await connection.send_json(event)
-                except WebSocketDisconnect:
+                except (WebSocketDisconnect, OSError):
                     self.disconnect(connection, user_id)
 
 
@@ -104,9 +105,9 @@ class ConnectionManager:
         for connection in connections.copy():
             try:
                 await connection.send_json(event)
-            except WebSocketDisconnect:
+            except (WebSocketDisconnect, OSError):
                 self.disconnect(connection, user_id)
-                
+
 
 manager = ConnectionManager()
 
@@ -132,14 +133,23 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008)
         return
 
-    await manager.connect(websocket)
+    became_online = await manager.connect(websocket, user_id)
+
+    
 
     try:
+        if became_online:
+            await notify_presence_safely(manager, user_id, True)
+
         while True:
             message = await websocket.receive_text()
             await manager.broadcast(message)
 
     except WebSocketDisconnect:
         print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
+
     finally:
-        manager.disconnect(websocket, user_id)
+        became_offline = manager.disconnect(websocket, user_id)
+
+        if became_offline:
+            await notify_presence_safely(manager, user_id, False)
