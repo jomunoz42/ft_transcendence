@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Response, status, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.db import get_session
 from app.db.models import User
+from app.crud.user import create_user, userSignup, UserAlreadyExists
 
 router = APIRouter()
 
@@ -26,7 +27,13 @@ def get_me(response: Response, session: Session = Depends(get_session)):
 		}
 
 @router.post("/me")
-def post_me(data: UserCreate):
+def post_me(response: Response, data: userSignup, session: Session = Depends(get_session)):
+	try:
+		create_user(session)
+	except UserAlreadyExists as error:
+		HTTPException(status_code=409, detail=str(error))
+	except Exception as error:
+		HTTPException(status_code=409, detail=str(error))
 	return {"username": data.username}
 
 @router.patch("/me")
