@@ -8,15 +8,16 @@ These tests verify queries, not PostgreSQL migration compatibility.
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, call
 
 import pytest
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base, Friendship, User
 from app.main import ConnectionManager
+import app.main as main
 import app.realtime.presence as presence
 
 
@@ -195,3 +196,186 @@ async def test_notify_presence_safely_logs_and_suppresses_errors(
     assert records[0].levelno == logging.ERROR
     assert records[0].getMessage() == f"Failed to notify presence for user 1 (online={online})"
     assert records[0].exc_info[1] is error
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("online_ids, expected", [
+    ([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [2, 3]),
+    ([2, 4, 5, 6, 7, 8, 9, 10, 11, 12], [2]),
+    ([3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [3]),
+    ([4, 5, 6, 7, 8, 9, 10, 11, 12], []),
+    ([], []),
+], ids=["both-directions", "incoming-offline", "outgoing-offline",
+        "only-nonfriends-online", "nobody-online"])
+async def test_snapshot_contains_only_online_accepted_friends(
+    presence_database, online_ids, expected,
+):
+    manager = ConnectionManager()
+    observers = [MagicMock(spec=WebSocket) for _ in online_ids]
+    for user_id, socket in zip(online_ids, observers):
+        await manager.connect(socket, user_id)
+    first_tab, new_tab = MagicMock(spec=WebSocket), MagicMock(spec=WebSocket)
+    await manager.connect(first_tab, 1)
+    await manager.connect(new_tab, 1)
+
+    # Real SQL filtering and threadpool lookup; no mocked friendship results.
+    await presence.send_presence_snapshot(manager, new_tab, 1)
+
+    new_tab.send_json.assert_awaited_once()
+    event = new_tab.send_json.await_args.args[0]
+    assert isinstance(event["data"]["online_user_ids"], list)
+    assert event == {
+        "type": "presence_snapshot",
+        "data": {"online_user_ids": event["data"]["online_user_ids"]},
+    }
+    assert sorted(event["data"]["online_user_ids"]) == expected
+    first_tab.send_json.assert_not_awaited()
+    for socket in observers:
+        socket.send_json.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_snapshot_for_user_without_friendships_is_empty(presence_database):
+    manager = ConnectionManager()
+    for user_id in range(1, 12):
+        await manager.connect(MagicMock(spec=WebSocket), user_id)
+    socket = MagicMock(spec=WebSocket)
+    await manager.connect(socket, 12)
+
+    await presence.send_presence_snapshot(manager, socket, 12)
+
+    socket.send_json.assert_awaited_once_with({
+        "type": "presence_snapshot", "data": {"online_user_ids": []},
+    })
+
+
+@pytest.mark.anyio
+async def test_get_online_friends_filters_offline_ids_without_mutating_input():
+    manager = ConnectionManager()
+    for user_id in (2, 2, 3, 99):
+        await manager.connect(MagicMock(spec=WebSocket), user_id)
+    friend_ids = [1, 3, 2, 4]
+
+    assert presence.get_online_friends(manager, friend_ids) == [3, 2]
+    assert friend_ids == [1, 3, 2, 4]
+    assert presence.get_online_friends(manager, []) == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure_at, error", [
+    ("lookup", RuntimeError("snapshot lookup failed")),
+    ("send", OSError("snapshot transport failed")),
+    ("send", WebSocketDisconnect(code=1006)),
+])
+async def test_snapshot_safe_wrapper_logs_and_suppresses_errors(
+    monkeypatch, caplog, failure_at, error,
+):
+    manager = ConnectionManager()
+    socket = MagicMock(spec=WebSocket)
+    await manager.connect(socket, 1)
+    friend = MagicMock(spec=WebSocket)
+    await manager.connect(friend, 2)
+    lookup = Mock(return_value=[2], side_effect=error if failure_at == "lookup" else None)
+    monkeypatch.setattr(presence, "find_presence_recipients", lookup)
+    if failure_at == "send":
+        socket.send_json.side_effect = error
+
+    with caplog.at_level(logging.ERROR, logger=presence.__name__):
+        await presence.send_presence_snapshot_safely(manager, socket, 1)
+
+    if failure_at == "send":
+        # Snapshot lookup, then the last-tab offline notification lookup.
+        assert lookup.call_args_list == [call(1), call(1)]
+        socket.send_json.assert_awaited_once_with({
+            "type": "presence_snapshot", "data": {"online_user_ids": [2]},
+        })
+        assert manager.active_connections == {2: {friend}}
+        friend.send_json.assert_awaited_once_with({
+            "type": "presence", "data": {"user_id": 1, "online": False},
+        })
+    else:
+        lookup.assert_called_once_with(1)
+        socket.send_json.assert_not_awaited()
+        assert manager.active_connections == {1: {socket}, 2: {friend}}
+        friend.send_json.assert_not_awaited()
+    records = [record for record in caplog.records if record.name == presence.__name__]
+    assert len(records) == 1
+    assert records[0].levelno == logging.ERROR
+    assert records[0].getMessage() == "Failed to send presence snapshot for user 1"
+    assert records[0].exc_info[1] is error
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", [OSError, WebSocketDisconnect])
+@pytest.mark.parametrize("healthy_tab", [False, True], ids=["last-tab", "healthy-sibling"])
+async def test_failed_snapshot_send_removes_dead_socket(
+    presence_database, monkeypatch, failure, healthy_tab,
+):
+    manager = ConnectionManager()
+    broken, sibling = MagicMock(spec=WebSocket), MagicMock(spec=WebSocket)
+    friend = MagicMock(spec=WebSocket)
+    await manager.connect(friend, 2)
+    await manager.connect(broken, 1)
+    if healthy_tab:
+        await manager.connect(sibling, 1)
+    broken.send_json.side_effect = failure()
+    notify = AsyncMock(wraps=presence.notify_presence_safely)
+    monkeypatch.setattr(presence, "notify_presence_safely", notify)
+
+    await presence.send_presence_snapshot_safely(manager, broken, 1)
+
+    broken.send_json.assert_awaited_once_with({
+        "type": "presence_snapshot", "data": {"online_user_ids": [2]},
+    })
+    expected_connections = {2: {friend}}
+    if healthy_tab:
+        expected_connections[1] = {sibling}
+        notify.assert_not_awaited()
+        friend.send_json.assert_not_awaited()
+    else:
+        notify.assert_awaited_once_with(manager, 1, False)
+        friend.send_json.assert_awaited_once_with({
+            "type": "presence", "data": {"user_id": 1, "online": False},
+        })
+    assert manager.active_connections == expected_connections
+    sibling.send_json.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("delivery", ["broadcast", "send_to_user"])
+@pytest.mark.parametrize("healthy_tab", [False, True], ids=["last-tab", "healthy-sibling"])
+async def test_failed_send_cleanup_delivers_offline_presence_to_friends(
+    presence_database, monkeypatch, delivery, healthy_tab,
+):
+    manager = ConnectionManager()
+    broken, sibling, friend, outsider = [MagicMock(spec=WebSocket) for _ in range(4)]
+    for user_id, socket in ((1, broken), (2, friend), (12, outsider)):
+        await manager.connect(socket, user_id)
+    if healthy_tab:
+        await manager.connect(sibling, 1)
+    broken.send_json.side_effect = OSError("connection lost")
+    notify = AsyncMock(wraps=presence.notify_presence_safely)
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    message = {"type": "message", "data": {"text": "detect failure"}}
+
+    if delivery == "broadcast":
+        await manager.broadcast("detect failure")
+    else:
+        await manager.send_to_user(1, message)
+
+    broken.send_json.assert_awaited_once_with(message)
+    assert manager.active_connections.get(1, set()) == ({sibling} if healthy_tab else set())
+    expected_friend_events = [] if healthy_tab else [
+        {"type": "presence", "data": {"user_id": 1, "online": False}},
+    ]
+    if delivery == "broadcast":
+        expected_friend_events.append(message)
+    assert [args.args[0] for args in friend.send_json.await_args_list] == expected_friend_events
+    assert [args.args[0] for args in outsider.send_json.await_args_list] == (
+        [message] if delivery == "broadcast" else []
+    )
+    if healthy_tab:
+        notify.assert_not_awaited()
+        sibling.send_json.assert_awaited_once_with(message)
+    else:
+        notify.assert_awaited_once_with(manager, 1, False)
