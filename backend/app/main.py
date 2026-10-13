@@ -7,6 +7,8 @@ from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
 from app.db import get_session
 from app.realtime.presence import notify_presence_safely
+from app.realtime.presence import (notify_presence_safely, send_presence_snapshot_safely)
+
 
 app = FastAPI()
 
@@ -44,8 +46,8 @@ class ConnectionManager:
 
         self.active_connections[user_id].add(websocket)
 
-        return was_offline
         print(f">>> ACTIVE CONNECTIONS: {len(self.active_connections)} <<<", flush=True)
+        return was_offline
 
 
     def disconnect(self, websocket: WebSocket, user_id: int) -> bool:
@@ -76,7 +78,10 @@ class ConnectionManager:
                 try:
                     await connection.send_json(event)
                 except (WebSocketDisconnect, OSError):
-                    self.disconnect(connection, user_id)
+                    became_offline = self.disconnect(connection, user_id)
+
+                    if became_offline:
+                        await notify_presence_safely(self, user_id, False)
 
 
     async def send_to_user(self, user_id: int, event: dict):
@@ -89,7 +94,10 @@ class ConnectionManager:
             try:
                 await connection.send_json(event)
             except (WebSocketDisconnect, OSError):
-                self.disconnect(connection, user_id)
+                became_offline = self.disconnect(connection, user_id)
+
+                if became_offline:
+                    await notify_presence_safely(self, user_id, False)
 
 
 manager = ConnectionManager()
@@ -118,9 +126,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
     became_online = await manager.connect(websocket, user_id)
 
-    
-
     try:
+        await send_presence_snapshot_safely(manager, websocket, user_id)
+
+        if websocket not in manager.active_connections.get(user_id, set()):
+            return
+
         if became_online:
             await notify_presence_safely(manager, user_id, True)
 

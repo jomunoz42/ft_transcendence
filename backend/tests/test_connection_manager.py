@@ -1,13 +1,22 @@
 """User and tab bookkeeping, targeted delivery, and failed-send cleanup."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app.main import ConnectionManager
+import app.main as main
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def presence_notification(monkeypatch):
+    # Manager bookkeeping tests must not trigger real friendship DB lookups.
+    notify = AsyncMock()
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    return notify
 
 
 async def test_first_connection_per_user_goes_online_and_extra_tabs_do_not():
@@ -103,7 +112,7 @@ async def test_sending_to_offline_users_and_broadcasting_without_connections_are
 @pytest.mark.parametrize("failure", [WebSocketDisconnect, OSError])
 @pytest.mark.parametrize("healthy_tab", [False, True], ids=["last-tab", "healthy-sibling"])
 async def test_failed_send_removes_only_broken_sockets_and_delivery_continues(
-    delivery, failure, healthy_tab,
+    delivery, failure, healthy_tab, presence_notification,
 ):
     manager = ConnectionManager()
     broken, sibling, other = [MagicMock(spec=WebSocket) for _ in range(3)]
@@ -138,3 +147,6 @@ async def test_failed_send_removes_only_broken_sockets_and_delivery_continues(
     assert broken.send_json.await_count == 1
     if healthy_tab:
         assert sibling.send_json.await_count == 2
+        presence_notification.assert_not_awaited()
+    else:
+        presence_notification.assert_awaited_once_with(manager, 1, False)
