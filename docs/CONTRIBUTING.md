@@ -20,6 +20,11 @@ if something here is unclear or should change, say so in the group chat.
 5. **Comments are resolved by who wrote them.** If you fix something a reviewer
    pointed out, reply to their comment saying it's fixed. The reviewer checks
    the fix and clicks *Resolve*, not you.
+6. **Rebase before you merge.** On your own branch: `git fetch origin`,
+   `git rebase origin/main`, fix any conflicts, run the tests, then
+   `git push --force-with-lease`. Then merge with the button on the PR. This
+   only moves your branch on top of `main`; nobody rebases `main` itself.
+   (Agreed 2026-10-09.)
 
 ## Issues
 

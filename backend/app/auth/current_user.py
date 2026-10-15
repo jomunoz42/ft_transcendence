@@ -1,0 +1,20 @@
+"""The current_user dependency: every protected route gets the logged-in user or a 401."""
+
+from fastapi import Cookie, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.auth.constants import SESSION_COOKIE_NAME
+from app.auth.sessions import user_for_token
+from app.db import get_session
+from app.db.models import User
+
+
+def current_user(
+    session: Session = Depends(get_session),
+    token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+) -> User:
+    """The user the session cookie logs in; 401 if the cookie is missing, unknown, or expired."""
+    user = user_for_token(session, token)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in")
+    return user
