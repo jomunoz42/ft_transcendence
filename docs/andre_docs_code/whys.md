@@ -16,6 +16,11 @@ that is not here? Ask André, and the answer gets added.
 - [Why Argon2 for passwords?](#why-argon2-for-passwords)
 - [Why SHA-256 for session tokens, if passwords use Argon2?](#why-sha-256-for-session-tokens-if-passwords-use-argon2)
 - [Why does `verify_password` return `False` instead of raising?](#why-does-verify_password-return-false-instead-of-raising)
+- [Why does `register_user` insert and catch the error, instead of checking first?](#why-does-register_user-insert-and-catch-the-error-instead-of-checking-first)
+- [Why is the email check so loose?](#why-is-the-email-check-so-loose)
+- [Why are passwords never stripped, when emails are?](#why-are-passwords-never-stripped-when-emails-are)
+- [Why does a failed login for an unknown email still hash a password?](#why-does-a-failed-login-for-an-unknown-email-still-hash-a-password)
+- [Why a session cookie and not a JWT?](#why-a-session-cookie-and-not-a-jwt)
 
 ---
 
@@ -162,3 +167,15 @@ time for a short or a long password.
 A wrong password costs one Argon2 check (~50 ms). Without the dummy check, an
 unknown email would answer in ~1 ms, and the time alone would tell an attacker
 which emails are registered, even with the same error message.
+
+### Why a session cookie and not a JWT?
+
+The team agreed on it in issue #14.
+
+- Logout really ends the session: the database row is deleted, so a copied
+  cookie stops working at once. A JWT stays valid until it expires.
+- The cookie is `HttpOnly`, so a script injected into the page cannot steal it.
+  A JWT is usually kept in `localStorage`, where any script can read it.
+- Browsers send the cookie on WebSocket connections too, so real-time features
+  reuse the same login with no extra work.
+- No signing secret to manage, so there is no `JWT_SECRET`.
