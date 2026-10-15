@@ -24,7 +24,7 @@ def get_me(response: Response, session: Session = Depends(get_session)):
 		"password_hash": user.password_hash,
 		"created_at": user.created_at,
 		"updated_at": user.updated_at,
-		}
+	}
 
 @router.post("/me")
 def post_me(response: Response, data: userSignup, session: Session = Depends(get_session)):
