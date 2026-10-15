@@ -3,6 +3,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.routes.v1.auth import router as auth_router
+
 from app.db import get_session
 
 app = FastAPI()
@@ -61,3 +63,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
+
+
+app.include_router(auth_router, prefix="/api/v1/auth")
