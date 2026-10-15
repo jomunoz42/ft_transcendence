@@ -19,6 +19,9 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
+
+from app.routes.v1.auth import router as auth_router
+
 from app.db import get_session
 from app.realtime.presence import (
     DB_TIMEOUT, PresenceResult, notify_presence_safely, send_presence_snapshot_safely,
@@ -405,3 +408,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     finally:
         manager.disconnect(websocket, user_id)
+        manager.disconnect(websocket)
+        print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
+
+
+app.include_router(auth_router, prefix="/api/v1/auth")
