@@ -8,11 +8,13 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from app.auth.current_user import SESSION_COOKIE, current_user
+from app.auth.current_user import current_user
 from app.auth.registration import register_user
 from app.auth.sessions import end_session, start_session
 from app.db import get_session
 from app.db.models import User
+
+COOKIE = "myplaylist_session"  # shared with the WebSocket login; the literal pins the contract
 
 
 @pytest.fixture
@@ -35,7 +37,7 @@ def test_a_request_without_a_session_cookie_is_refused(client):
 
 def test_a_valid_session_cookie_gives_the_route_its_user(client, session):
     alice = register_user(session, "alice@x.com", "hunter22", "Alice")
-    client.cookies.set(SESSION_COOKIE, start_session(session, alice))
+    client.cookies.set(COOKIE, start_session(session, alice))
 
     response = client.get("/protected")
 
@@ -46,7 +48,7 @@ def test_a_valid_session_cookie_gives_the_route_its_user(client, session):
 def test_a_cookie_from_an_ended_session_is_refused(client, session):
     alice = register_user(session, "alice@x.com", "hunter22", "Alice")
     token = start_session(session, alice)
-    client.cookies.set(SESSION_COOKIE, token)
+    client.cookies.set(COOKIE, token)
     end_session(session, token)
 
     response = client.get("/protected")
