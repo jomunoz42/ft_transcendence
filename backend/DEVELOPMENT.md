@@ -42,11 +42,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+## Models
+![alt text](app/assets/models.png)
+
+## Flow
+![alt text](app/assets/flow.png)
+
+## Tree
+![alt text](app/assets/tree.png)
+
 ## Coding practices
 
 #### Routes
 ```python
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, responses
 
 router = APIRouter()
 
@@ -57,7 +66,18 @@ def get_all():
 
 #### HTTP Exceptions
 ```python
+# /app/crud/xxx
+class Error<ErrorName>(Exception):
+    pass
+
+...
+except:
+	raise Error<ErrorName>("Error when reading profiles")
+
+# /app/routes/xxx
 from fastapi import HTTPException
 
-raise HTTPException(status_code=404, detail="profile not found")
+...
+except Exception as error:
+	raise HTTPException(status_code=400, detail=str(error))
 ```

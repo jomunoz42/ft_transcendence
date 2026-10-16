@@ -4,38 +4,43 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 from app.db.models import User
 from app.crud.user import create_user, userSignup, UserAlreadyExists
+from app.crud.profile import create_profile, ErrorCreatingProfile
 
 router = APIRouter()
 
 @router.get("/")
-def get_all(response: Response, session: Session = Depends(get_session)):
-	users = session.query(User).all()
+def get_all(session: Session = Depends(get_session)):
+	try:
+		users = session.query(User).all()
+	except:
+		raise HTTPException(status_code=400, detail="Error when fetching users")
 	return users
 
 @router.get("/me")
-def get_me(response: Response, session: Session = Depends(get_session)):
+def get_me(session: Session = Depends(get_session)):
 	user = session.query(User).filter(User.id == 1).first()
 	if not user:
-		response.status_code = status.HTTP_404_NOT_FOUND
-		return {"status": "error", "msg": "user not found"}
+		raise HTTPException(status_code=404, detail="User not found")
 	return {
 		"id": user.id,
 		"email": user.email,
-		"password_hash": user.password_hash,
-		"created_at": user.created_at,
-		"updated_at": user.updated_at,
+		"password_hash": "••••••••••",
 	}
 
 @router.post("/me")
-def post_me(response: Response, data: userSignup, session: Session = Depends(get_session)):
+def post_me(data: userSignup, session: Session = Depends(get_session)):
 	try:
-		create_user(session)
-	except UserAlreadyExists as error:
-		HTTPException(status_code=409, detail=str(error))
+		user = create_user(data, session)
 	except Exception as error:
-		HTTPException(status_code=409, detail=str(error))
-	return {"username": data.username}
-
-@router.patch("/me")
-def patch_me(data: UserCreate):
-	return {"username": data.username}
+		session.rollback()
+		raise HTTPException(status_code=409, detail=str(error))
+	try:
+		profile = create_profile(user.id, session)
+	except ErrorCreatingProfile as error:
+		session.rollback()
+		raise HTTPException(status_code=409, detail=str(error))
+	session.commit()
+	return {
+		"user": user,
+		"profile": profile
+	}

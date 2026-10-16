@@ -54,10 +54,10 @@ class User(Base):
         foreign_keys="Friendship.addressee_id", back_populates="addressee", cascade="all, delete-orphan"
     )
     comments: Mapped[list["Top10Comment"]] = relationship(
-        foreign_keys="Top10Comment.author_id", back_populates="author", cascade="all, delete-orphan"
+        foreign_keys="Top10Comment.top10_owner_id", back_populates="author", cascade="all, delete-orphan"
     )
     reactions: Mapped[list["Top10Reaction"]] = relationship(
-        foreign_keys="Top10Reaction.author_id", back_populates="author", cascade="all, delete-orphan"
+        foreign_keys="Top10Reaction.top10_owner_id", back_populates="author", cascade="all, delete-orphan"
     )
     sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

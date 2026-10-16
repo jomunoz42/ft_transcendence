@@ -1,4 +1,4 @@
-from app.db.models import User, Profile, Friendship
+from app.db.models import User, Profile, Friendship, Song, Top10Entry
 from app.db import SessionLocal
 
 with SessionLocal() as session:
@@ -81,5 +81,30 @@ with SessionLocal() as session:
 	]
 
 	session.add_all(FRIENDSHIPS)
+	session.flush()
+
+	SONGS = [
+		Song(
+			provider="Unsure",
+			provider_id="1",
+			title="Envie",
+			artist="Jonhy",
+		)
+	]
+
+	session.add_all(SONGS)
+	session.flush()
+
+	print(SONGS[0].id)
+	TOP10S = [
+		Top10Entry(
+			user_id=USERS[1].id,
+			song_id=SONGS[0].id,
+			rank=1,
+		)
+	]
+
+	session.add_all(TOP10S)
+	session.flush()
 
 	session.commit()
