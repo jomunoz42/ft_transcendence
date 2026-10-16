@@ -3,10 +3,20 @@ from app.db.models import User, Profile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+<<<<<<< HEAD
 from datetime import datetime, timezone
 from app.auth.passwords import hash_password
 
 class UserUpdate(BaseModel):
+=======
+from app.auth.passwords import hash_password
+
+class userSignup(BaseModel):
+	email: str
+	password: str
+
+class userUpdate(BaseModel):
+>>>>>>> 1604070 (checkpoint)
 	email: Optional[str] = None
 	password: Optional[str] = None
 
@@ -38,6 +48,7 @@ def update_user(user_id: int, data: UserUpdate, session: Session):
 			setattr(user, "is_verified", False)
 		session.flush()
 	except:
+<<<<<<< HEAD
 		raise ErrorUpdatingUser("error updating user")
 	return user
 
@@ -71,3 +82,45 @@ def update_user(user: User):
 def delete_user(user: User):
 	pass
 >>>>>>> 2c38698 (before rebase)
+=======
+		raise UserAlreadyExists("User already exists")
+	try:
+		profile = Profile(user_id=user.id)
+		session.add(profile)
+		session.flush()
+	except Exception as error:
+		raise Exception(error)
+	return user
+
+def read_user(user_id: int, session: Session):
+	try:
+		user = session.query(User).where(User.id == user_id).first()
+	except:
+		raise ErrorReadingUser("error reading user")
+	return user
+
+def update_user(user_id: int, data: userUpdate, session: Session):
+	user = session.query(User).where(User.id == user_id).first()
+	try:
+		userData = data.model_dump(exclude_none=True, exclude_unset=True)
+		for k, v in userData.items():
+			if k == 'password':
+				setattr(user, "password_hash", hash_password(v))
+			if k == 'email':
+				setattr(user, k, v)
+				setattr(user, "is_verified", False)
+			else:
+				setattr(user, k, v)
+		session.flush()
+	except:
+		raise ErrorUpdatingUser("error updating user")
+	return user
+
+def delete_user(user_id: int, session: Session):
+	try:
+		user = session.query(User).where(User.id == user_id).delete()
+		session.flush()
+	except:
+		raise ErrorDeletingUser("error deleting user")
+	return user
+>>>>>>> 1604070 (checkpoint)
