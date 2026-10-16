@@ -4,7 +4,10 @@
 # TODO: Add current_user to any current_user-only function (eg. updatetop10)
 # TODO: Review class exception
 
+<<<<<<< HEAD
 from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
+=======
+>>>>>>> 34acfc0 (checkpoint)
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -30,16 +33,18 @@ from app.realtime.presence import (
 
 logger = logging.getLogger(__name__)
 # ROUTES
+from app.routes.v1.settings import router as settings
 from app.routes.v1.users import router as users
 from app.routes.v1.profiles import router as profiles
 from app.routes.v1.friendships import router as friendships
 from app.routes.v1.top10s import router as top10s
 
 app = FastAPI()
-app.include_router(users, prefix="/api/v1/users")
-app.include_router(profiles, prefix="/api/v1/profiles")
-app.include_router(friendships, prefix="/api/v1/friendships")
-app.include_router(top10s, prefix="/api/v1/top10s")
+app.include_router(settings,		prefix="/api/v1/settings")
+app.include_router(users,			prefix="/api/v1/users")
+app.include_router(profiles,		prefix="/api/v1/profiles")
+app.include_router(friendships,		prefix="/api/v1/friendships")
+app.include_router(top10s,			prefix="/api/v1/top10s")
 
 # ROUTES
 from app.routes.v1.settings import router as settings
