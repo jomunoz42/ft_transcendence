@@ -43,13 +43,13 @@ uvicorn app.main:app --reload
 ```
 
 ## Models
-![alt text](app/assets/models.png)
+![alt text](assets/models.png)
 
 ## Flow
-![alt text](app/assets/flow.png)
+![alt text](assets/flow.png)
 
 ## Tree
-![alt text](app/assets/tree.png)
+![alt text](assets/tree.png)
 
 ## Coding practices
 
