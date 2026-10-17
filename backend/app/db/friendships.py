@@ -7,9 +7,9 @@ turns FriendRequestNotAllowed into an error response.
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
-from app.db.models import Friendship
+from app.db.models import Friendship, User
 
 
 class FriendRequestNotAllowed(Exception):
@@ -58,3 +58,25 @@ def send_friend_request(session: Session, requester_id: int, addressee_id: int) 
             return send_friend_request(session, requester_id, addressee_id)
         raise FriendRequestNotAllowed("cannot ask yourself or a user who does not exist") from None
     return request
+
+
+def are_friends(session: Session, a: int, b: int) -> bool:
+    """True only when the pair's row is accepted; the order of a and b does not matter."""
+    row = _pair_row(session, a, b)
+    if row is None:
+        return False
+    return row.status == "accepted"
+
+
+def list_friends(session: Session, user_id: int) -> list[User]:
+    """The user's accepted friends from either side of the pair, deleted accounts left out, ordered by id."""
+    friend = aliased(User)
+    return list(session.scalars(
+        select(friend)
+        .join(Friendship, or_(
+            and_(Friendship.requester_id == user_id, Friendship.addressee_id == friend.id),
+            and_(Friendship.requester_id == friend.id, Friendship.addressee_id == user_id),
+        ))
+        .where(Friendship.status == "accepted", friend.deleted_at.is_(None))
+        .order_by(friend.id)
+    ))
