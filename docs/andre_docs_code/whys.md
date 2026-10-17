@@ -9,6 +9,7 @@ that is not here? Ask André, and the answer gets added.
 - [Why one migration file per change?](#why-one-migration-file-per-change)
 - [Why does DB code live in `backend/app/db/` and not `database/`?](#why-does-db-code-live-in-backendappdb-and-not-database)
 - [Why do friend requests work this way?](#why-do-friend-requests-work-this-way)
+- [Why does `list_friends` leave out deleted accounts, but `are_friends` does not?](#why-does-list_friends-leave-out-deleted-accounts-but-are_friends-does-not)
 - [Why bigint ids, and not unsigned or UUID?](#why-bigint-ids-and-not-unsigned-or-uuid)
 - [Why are rules enforced by Postgres and not only in Python?](#why-are-rules-enforced-by-postgres-and-not-only-in-python)
 
@@ -67,6 +68,13 @@ The rules are in [`database.md`](database.md#friend-requests). The reasons:
   but nobody can spam requests after being declined. Reopening goes back to
   `pending`, so the other person still has to say yes.
 - **Blocked refuses both sides.** Unblocking will be its own action.
+
+### Why does `list_friends` leave out deleted accounts, but `are_friends` does not?
+
+A soft-deleted account is gone for everyone, the same rule login and sessions
+follow, so it must not show up in anyone's friends list. `are_friends` answers
+about two users the caller already has; a deleted user's profile or Top 10
+should already return 404 before anyone asks.
 
 ### Why bigint ids, and not unsigned or UUID?
 

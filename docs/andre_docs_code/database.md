@@ -78,6 +78,23 @@ If both users ask at the same instant, the second request finds the first one's
 row and is handled by the rules above (asking back accepts). The caller never
 sees an `IntegrityError`, and the session keeps working after any refusal.
 
+## Checking and listing friends
+
+Never write the "both directions" query yourself. Use these two read-only
+helpers; neither flushes nor commits:
+
+```python
+from app.db.friendships import are_friends, list_friends
+
+are_friends(session, me, them)   # True only when the pair's row is accepted
+list_friends(session, me)        # list[User], accepted friends, ordered by id
+```
+
+- `are_friends` gives the same answer whichever user goes first. No row,
+  `pending`, `declined` and `blocked` all give `False`.
+- `list_friends` leaves out soft-deleted accounts (`deleted_at` set). Need only
+  the ids? `[friend.id for friend in list_friends(session, me)]`.
+
 ## Changing the schema
 
 1. Edit or add models in `backend/app/db/models.py`.
