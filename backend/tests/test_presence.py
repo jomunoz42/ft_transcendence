@@ -21,6 +21,31 @@ import app.main as main
 import app.realtime.presence as presence
 
 
+async def flush_presence(manager):
+    """Drain queued work without tearing down the unit test's connections."""
+    manager.start()
+    try:
+        await asyncio.wait_for(manager.presence_queue.join(), timeout=1)
+    finally:
+        manager.presence_worker.cancel()
+        await asyncio.gather(manager.presence_worker, return_exceptions=True)
+
+
+@pytest.fixture(autouse=True)
+def ready_connections(monkeypatch):
+    # Query/unit tests begin with initialized sockets. Dispatcher tests cover
+    # the real registration -> snapshot -> live delivery sequence.
+    connect = ConnectionManager.connect
+
+    async def ready_connect(manager, socket, user_id):
+        result = await connect(manager, socket, user_id)
+        manager.initializing.discard(socket)
+        manager.initialization_admissions.pop(socket, None)
+        return result
+
+    monkeypatch.setattr(ConnectionManager, "connect", ready_connect)
+
+
 @pytest.fixture
 def presence_database(tmp_path, monkeypatch):
     # A file lets the real threadpool lookup open its own SQLite connection.
@@ -283,21 +308,19 @@ async def test_snapshot_safe_wrapper_logs_and_suppresses_errors(
     with caplog.at_level(logging.ERROR, logger=presence.__name__):
         await presence.send_presence_snapshot_safely(manager, socket, 1)
 
+    lookup.assert_called_once_with(1)
     if failure_at == "send":
-        # Snapshot lookup, then the last-tab offline notification lookup.
-        assert lookup.call_args_list == [call(1), call(1)]
         socket.send_json.assert_awaited_once_with({
             "type": "presence_snapshot", "data": {"online_user_ids": [2]},
         })
-        assert manager.active_connections == {2: {friend}}
-        friend.send_json.assert_awaited_once_with({
-            "type": "presence", "data": {"user_id": 1, "online": False},
-        })
     else:
-        lookup.assert_called_once_with(1)
         socket.send_json.assert_not_awaited()
-        assert manager.active_connections == {1: {socket}, 2: {friend}}
-        friend.send_json.assert_not_awaited()
+    # Both lookup and transport failures now close initialization. Cleanup
+    # records the transition but never delivers recursively.
+    assert manager.active_connections == {2: {friend}}
+    socket.close.assert_awaited_once_with(code=1011)
+    assert 1 in manager.pending_presence
+    friend.send_json.assert_not_awaited()
     records = [record for record in caplog.records if record.name == presence.__name__]
     assert len(records) == 1
     assert records[0].levelno == logging.ERROR
@@ -318,11 +341,17 @@ async def test_failed_snapshot_send_removes_dead_socket(
     await manager.connect(broken, 1)
     if healthy_tab:
         await manager.connect(sibling, 1)
-    broken.send_json.side_effect = failure()
     notify = AsyncMock(wraps=presence.notify_presence_safely)
-    monkeypatch.setattr(presence, "notify_presence_safely", notify)
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    await flush_presence(manager)
+    notify.reset_mock()
+    friend.send_json.reset_mock()
+    sibling.send_json.reset_mock()
+    broken.send_json.reset_mock()
+    broken.send_json.side_effect = failure()
 
     await presence.send_presence_snapshot_safely(manager, broken, 1)
+    await flush_presence(manager)
 
     broken.send_json.assert_awaited_once_with({
         "type": "presence_snapshot", "data": {"online_user_ids": [2]},
@@ -353,9 +382,13 @@ async def test_failed_send_cleanup_delivers_offline_presence_to_friends(
         await manager.connect(socket, user_id)
     if healthy_tab:
         await manager.connect(sibling, 1)
-    broken.send_json.side_effect = OSError("connection lost")
     notify = AsyncMock(wraps=presence.notify_presence_safely)
     monkeypatch.setattr(main, "notify_presence_safely", notify)
+    await flush_presence(manager)
+    notify.reset_mock()
+    for socket in (broken, sibling, friend, outsider):
+        socket.send_json.reset_mock()
+    broken.send_json.side_effect = OSError("connection lost")
     message = {"type": "message", "data": {"text": "detect failure"}}
 
     if delivery == "broadcast":
@@ -363,13 +396,12 @@ async def test_failed_send_cleanup_delivers_offline_presence_to_friends(
     else:
         await manager.send_to_user(1, message)
 
+    await flush_presence(manager)
     broken.send_json.assert_awaited_once_with(message)
     assert manager.active_connections.get(1, set()) == ({sibling} if healthy_tab else set())
-    expected_friend_events = [] if healthy_tab else [
-        {"type": "presence", "data": {"user_id": 1, "online": False}},
-    ]
-    if delivery == "broadcast":
-        expected_friend_events.append(message)
+    expected_friend_events = [message] if delivery == "broadcast" else []
+    if not healthy_tab:
+        expected_friend_events.append({"type": "presence", "data": {"user_id": 1, "online": False}})
     assert [args.args[0] for args in friend.send_json.await_args_list] == expected_friend_events
     assert [args.args[0] for args in outsider.send_json.await_args_list] == (
         [message] if delivery == "broadcast" else []
