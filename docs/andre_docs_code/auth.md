@@ -94,3 +94,46 @@ session.commit()
 - 5 wrong passwords lock the account for 15 minutes (`MAX_FAILED_ATTEMPTS`,
   `LOCKOUT`). Attempts during the lock are refused and not counted. After it,
   the user has 5 fresh tries. A correct password resets the count.
+
+## Who is logged in — `app.auth.current_user`
+
+```python
+from fastapi import Depends
+from app.auth.current_user import current_user
+from app.db.models import User
+
+@router.get("/something")
+def something(user: User = Depends(current_user)):
+    ...  # only runs for a logged-in user
+```
+
+- Reads the session cookie and returns the logged-in `User`. Missing, unknown or
+  expired cookie: the request stops with 401 `{"detail": "Not logged in"}`, and
+  the route body never runs.
+- Use it on every route that needs a logged-in user. Do not read the cookie yourself.
+- The cookie name is `SESSION_COOKIE_NAME` in `app.auth.constants`
+  (`"myplaylist_session"`). The WebSocket login reads the same cookie.
+
+## HTTP routes — `/api/v1/auth`
+
+| Route | Body | Success | Errors |
+|---|---|---|---|
+| `POST /register` | `{email, password, display_name}` | 201 user | 422, 409 |
+| `POST /login` | `{email, password}` | 200 user + cookie set | 401 |
+| `GET /me` | none | 200 user | 401 |
+| `POST /logout` | none | 204, cookie cleared | none |
+
+"user" is always `{"id", "email", "display_name"}`. The password hash is never sent.
+
+**Errors** use FastAPI's `{"detail": ...}`:
+- 422 from a broken rule: `{"detail": {"field": "email", "reason": "not a valid email address"}}`.
+  A missing or wrongly typed field gets FastAPI's own 422 instead, where `detail`
+  is a list.
+- 409: `{"detail": "Email already registered"}`.
+- 401 from login: `{"detail": "Invalid email or password"}`, the same for every
+  reason, including a locked account.
+
+**The cookie:** `myplaylist_session`, `HttpOnly`, `Secure`, `SameSite=Lax`,
+7 days. JavaScript cannot read it, and the frontend never stores a token. Call
+the API with `fetch(url, { credentials: "include" })` and the browser sends the
+cookie by itself. Logout works even when not logged in, so calling it twice is fine.
