@@ -7,15 +7,14 @@ import pytest
 from fastapi import WebSocketDisconnect
 from sqlalchemy.exc import OperationalError, ProgrammingError, TimeoutError as PoolTimeout
 
-import app.realtime.manager as realtime_manager
+import app.main as main
 import app.realtime.presence as presence
-from realtime_helpers import deliver_to_all
 from test_presence_dispatcher import Socket, dispatcher, friendships, ready, settle
 
 pytestmark = pytest.mark.anyio
 
 
-@pytest.mark.parametrize("delivery", ["server_fanout", "send_to_user"])
+@pytest.mark.parametrize("delivery", ["broadcast", "send_to_user"])
 async def test_cancelled_lock_waiter_does_not_disconnect_active_writer(dispatcher, delivery):
     manager = dispatcher
     socket = Socket()
@@ -29,12 +28,12 @@ async def test_cancelled_lock_waiter_does_not_disconnect_active_writer(dispatche
             await release.wait()
 
     socket.send_json.side_effect = transport
-    first = asyncio.create_task(deliver_to_all(manager, "first"))
+    first = asyncio.create_task(manager.broadcast("first"))
 
     async def second_sender():
         waiting.set()
-        if delivery == "server_fanout":
-            await deliver_to_all(manager, "cancelled")
+        if delivery == "broadcast":
+            await manager.broadcast("cancelled")
         else:
             await manager.send_to_user(1, {"type": "message", "data": {"text": "cancelled"}})
 
@@ -52,7 +51,7 @@ async def test_cancelled_lock_waiter_does_not_disconnect_active_writer(dispatche
     finally:
         release.set()
         await asyncio.wait_for(first, 1)
-    await deliver_to_all(manager, "still healthy")
+    await manager.broadcast("still healthy")
     assert socket.events[-1]["data"]["text"] == "still healthy"
 
 
@@ -300,7 +299,7 @@ async def test_initialization_admission_limits_preserve_healthy_tabs_and_recover
     excess.close.assert_awaited_once_with(code=1013)
     assert len(manager.initialization_admissions) == 2
     assert manager.active_connections == {1: {healthy, first, second}}
-    await deliver_to_all(manager, "ready tab survives")
+    await manager.broadcast("ready tab survives")
     assert healthy.events[-1]["data"]["text"] == "ready tab survives"
     assert await manager.initialize(first, 1)
     assert await manager.initialize(second, 1)
@@ -353,7 +352,7 @@ async def test_initialization_churn_removes_queued_jobs_and_releases_capacity(
     manager.MAX_INITIALIZATIONS = 1
     manager.INITIALIZE_TIMEOUT = 0.01 if failure == "timeout" else 20
     started, release = asyncio.Event(), asyncio.Event()
-    original = realtime_manager.notify_presence_safely
+    original = main.notify_presence_safely
 
     async def notify(manager, user_id, online):
         if user_id == 99:
@@ -361,7 +360,7 @@ async def test_initialization_churn_removes_queued_jobs_and_releases_capacity(
             await release.wait()
         return await original(manager, user_id, online)
 
-    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
     manager.schedule_presence(99)
     await asyncio.wait_for(started.wait(), 1)
     try:
@@ -411,12 +410,12 @@ async def test_messages_before_snapshot_lookup_finishes_are_not_buffered(dispatc
     initialization = asyncio.create_task(manager.initialize(socket, 1))
     try:
         await asyncio.wait_for(started.wait(), 1)
-        await deliver_to_all(manager, "too early")
+        await manager.broadcast("too early")
         socket.send_json.assert_not_awaited()
     finally:
         release.set()
     assert await asyncio.wait_for(initialization, 1)
-    await deliver_to_all(manager, "ready")
+    await manager.broadcast("ready")
     assert socket.events == [
         {"type": "presence_snapshot", "data": {"online_user_ids": []}},
         {"type": "message", "data": {"text": "ready"}},
@@ -446,7 +445,7 @@ async def test_snapshot_failure_releases_last_admission_slot(dispatcher, monkeyp
 async def test_cancelling_queued_snapshot_preserves_other_jobs_and_fifo(dispatcher, monkeypatch):
     manager = dispatcher
     started, release = asyncio.Event(), asyncio.Event()
-    original = realtime_manager.notify_presence_safely
+    original = main.notify_presence_safely
 
     async def notify(manager, user_id, online):
         if user_id == 99:
@@ -454,7 +453,7 @@ async def test_cancelling_queued_snapshot_preserves_other_jobs_and_fifo(dispatch
             await release.wait()
         return await original(manager, user_id, online)
 
-    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
     manager.schedule_presence(99)
     await asyncio.wait_for(started.wait(), 1)
     sockets = [Socket() for _ in range(3)]

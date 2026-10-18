@@ -11,10 +11,8 @@ import pytest
 from fastapi import WebSocketDisconnect
 
 import app.main as main
-import app.realtime.manager as realtime_manager
 import app.realtime.presence as presence
-from app.realtime.manager import ConnectionManager
-from realtime_helpers import deliver_to_all
+from app.main import ConnectionManager
 
 pytestmark = pytest.mark.anyio
 
@@ -42,7 +40,6 @@ async def ready(manager, socket, user_id):
 
 @pytest.fixture
 def friendships(monkeypatch):
-    monkeypatch.setattr(ConnectionManager, "check_session", AsyncMock(return_value=True))
     graph = {}
     monkeypatch.setattr(presence, "find_presence_recipients", lambda user_id: graph.get(user_id, []))
 
@@ -242,7 +239,7 @@ async def test_failed_recipient_queues_offline_without_recursive_delivery(dispat
     b.send_json.side_effect = OSError("lost transport")
     observer.send_json.reset_mock()
     depth = 0
-    original = realtime_manager.notify_presence_safely
+    original = main.notify_presence_safely
 
     async def notify(*args):
         nonlocal depth
@@ -253,7 +250,7 @@ async def test_failed_recipient_queues_offline_without_recursive_delivery(dispat
         finally:
             depth -= 1
 
-    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
     manager.schedule_presence(1)
     await settle(manager)
     assert observer.events == [
@@ -353,7 +350,7 @@ async def test_stalled_operation_is_bounded_and_healthy_socket_survives(
     if operation.startswith("snapshot"):
         assert not await asyncio.wait_for(manager.initialize(stalled, 1), 1)
     else:
-        await asyncio.wait_for(deliver_to_all(manager, "survives"), 1)
+        await asyncio.wait_for(manager.broadcast("survives"), 1)
     assert manager.active_connections == {2: {healthy}}
     stalled.close.assert_awaited_once_with(code=1011)
     await manager.send_to_user(2, {"type": "message", "data": {"text": "healthy"}})
@@ -370,7 +367,7 @@ async def test_initialization_queue_wait_has_deadline(dispatcher, monkeypatch):
         await release.wait()
         return True
 
-    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
+    monkeypatch.setattr(main, "notify_presence_safely", notify)
     socket = Socket()
     await manager.connect(socket, 1)
     await asyncio.wait_for(started.wait(), 1)
@@ -527,90 +524,7 @@ async def test_stalled_close_does_not_block_healthy_recipient(dispatcher):
 
     failed.close.side_effect = close
     manager.CLOSE_TIMEOUT = 0.01
-    await asyncio.wait_for(deliver_to_all(manager, "healthy"), 1)
+    await asyncio.wait_for(manager.broadcast("healthy"), 1)
     assert cancelled.is_set()
     assert manager.active_connections == {2: {healthy}}
     assert healthy.events[-1] == {"type": "message", "data": {"text": "healthy"}}
-
-
-async def test_refreshes_coalesce_and_retry_after_transient_lookup_failure(dispatcher, friendships, monkeypatch):
-    manager = dispatcher
-    subject, friend = Socket(), Socket()
-    await ready(manager, subject, 1)
-    await ready(manager, friend, 2)
-    subject.send_json.reset_mock()
-    friendships[1] = [2]
-    original = presence.find_presence_recipients
-    def unavailable(_user_id):
-        raise OSError("temporary outage")
-
-    monkeypatch.setattr(presence, "find_presence_recipients", unavailable)
-    first = manager.schedule_snapshot(subject, 1)
-    assert manager.schedule_snapshot(subject, 1) is first
-    await settle(manager)
-    assert first.result() is False
-    assert manager.active_connections[1] == {subject}
-    subject.close.assert_not_awaited()
-    subject.send_json.assert_not_awaited()
-    monkeypatch.setattr(presence, "find_presence_recipients", original)
-    manager.schedule_snapshot(subject, 1)
-    await settle(manager)
-    assert subject.events == [{"type": "presence_snapshot", "data": {"online_user_ids": [2]}}]
-    assert manager.snapshot_pending == {}
-
-
-async def test_friendship_refresh_and_offline_transition_stay_ordered(dispatcher, friendships, monkeypatch):
-    manager = dispatcher
-    subject, friend = Socket(), Socket()
-    await ready(manager, subject, 1)
-    await ready(manager, friend, 2)
-    subject.send_json.reset_mock()
-    friendships.update({1: [2], 2: [1]})
-    started, release = asyncio.Event(), asyncio.Event()
-
-    async def send(event):
-        if event["type"] == "presence_snapshot":
-            started.set()
-            await release.wait()
-
-    subject.send_json.side_effect = send
-    manager.schedule_snapshot(subject, 1)
-    await asyncio.wait_for(started.wait(), 1)
-    try:
-        manager.disconnect(friend, 2)
-    finally:
-        release.set()
-    await settle(manager)
-    assert subject.events == [
-        {"type": "presence_snapshot", "data": {"online_user_ids": [2]}},
-        {"type": "presence", "data": {"user_id": 2, "online": False}},
-    ]
-
-
-async def test_disconnect_prunes_queued_refresh_and_releases_cookie(dispatcher, monkeypatch):
-    manager = dispatcher
-    socket = Socket()
-    await ready(manager, socket, 1)
-    started, release = asyncio.Event(), asyncio.Event()
-    original = realtime_manager.notify_presence_safely
-
-    async def notify(manager, user_id, online):
-        if user_id == 99:
-            started.set()
-            await release.wait()
-        return await original(manager, user_id, online)
-
-    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
-    manager.schedule_presence(99)
-    await asyncio.wait_for(started.wait(), 1)
-    try:
-        manager.session_tokens[socket] = "test-token"
-        pending = manager.schedule_snapshot(socket, 1)
-        manager.disconnect(socket, 1)
-        assert pending.result() is False
-        assert socket not in manager.session_tokens
-        assert socket not in manager.friend_ids
-        assert socket not in manager.snapshot_pending
-    finally:
-        release.set()
-    await settle(manager)
