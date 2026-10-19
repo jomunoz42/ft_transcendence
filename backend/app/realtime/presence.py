@@ -2,11 +2,9 @@ import asyncio
 import logging
 from enum import Enum, auto
 
-from sqlalchemy import or_, select
 from sqlalchemy.exc import DBAPIError, OperationalError, TimeoutError as PoolTimeout
-from sqlalchemy.orm import Session
 from fastapi import WebSocket
-from app.db.models import Friendship
+from app.db.friendships import list_friends
 from app.db import SessionLocal
 from starlette.concurrency import run_in_threadpool
 
@@ -36,31 +34,9 @@ def is_transient_failure(error: Exception) -> bool:
     return False
 
 
-def get_presence_recipients(session: Session, user_id: int) -> list[int]:
-    friendships = session.scalars(
-        select(Friendship).where(
-            Friendship.status == "accepted",
-            or_(
-                Friendship.requester_id == user_id,
-                Friendship.addressee_id == user_id,
-            ),
-        )
-    )
-
-    recipients = []
-
-    for friendship in friendships:
-        if friendship.requester_id == user_id:
-            recipients.append(friendship.addressee_id)
-        else:
-            recipients.append(friendship.requester_id)
-
-    return recipients
-
-
 def find_presence_recipients(user_id: int) -> list[int]:
     with SessionLocal() as session:
-        return get_presence_recipients(session, user_id)
+        return [friend.id for friend in list_friends(session, user_id)]
 
 
 async def notify_presence(manager, user_id: int, online: bool) -> None:
@@ -110,9 +86,20 @@ def get_online_friends(manager, friend_ids: list[int]) -> list[int]:
 async def send_presence_snapshot(manager, websocket: WebSocket, user_id: int) -> bool:
     if websocket not in manager.active_connections.get(user_id, set()):
         return False
-    async with asyncio.timeout(DB_TIMEOUT):
-        friend_ids = await run_in_threadpool(find_presence_recipients, user_id)
+    try:
+        async with asyncio.timeout(DB_TIMEOUT):
+            friend_ids = await run_in_threadpool(find_presence_recipients, user_id)
+    except Exception as error:
+        if websocket not in manager.initializing and is_transient_failure(error):
+            # A refresh can retry on the next tick without discarding a healthy
+            # transport. Initial snapshots must still succeed before readiness.
+            logger.warning("Presence refresh temporarily unavailable for user %s", user_id)
+            return False
+        raise
 
+    if (websocket not in manager.initializing
+            and manager.friend_ids.get(websocket) == frozenset(friend_ids)):
+        return True
     online_friends = get_online_friends(manager, friend_ids)
 
     event = {
@@ -122,7 +109,10 @@ async def send_presence_snapshot(manager, websocket: WebSocket, user_id: int) ->
         },
     }
 
-    return await manager.send_frame(websocket, user_id, event, snapshot=True)
+    delivered = await manager.send_frame(websocket, user_id, event, snapshot=True)
+    if delivered and websocket in manager.active_connections.get(user_id, set()):
+        manager.friend_ids[websocket] = frozenset(friend_ids)
+    return delivered
 
 
 async def send_presence_snapshot_safely(manager, websocket: WebSocket, user_id: int) -> bool:
