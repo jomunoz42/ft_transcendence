@@ -71,9 +71,11 @@ def logout(
     response: Response,
     session: Session = Depends(get_session),
     token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    notify_logout: LogoutNotifier = Depends(get_logout_notifier),
 ) -> None:
     """End this browser's session and clear its cookie; 204 even if it was not logged in."""
     if token:
         end_session(session, token)
         session.commit()
+        notify_logout(token)
     response.delete_cookie(SESSION_COOKIE_NAME, httponly=True, secure=True, samesite="lax")
