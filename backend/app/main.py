@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # TODO: Update HTTPExceptions to match the right error status code
 # TODO: Add tests
 # TODO: Update current_user_id with Andre's function
@@ -5,6 +6,8 @@
 # TODO: Review class exception
 
 from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
+=======
+>>>>>>> origin/main
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -14,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
+<<<<<<< HEAD
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
 
@@ -23,10 +27,17 @@ from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketD
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+=======
+
+from app.auth.constants import SESSION_COOKIE_NAME
+from app.auth.websocket import authenticate_websocket
+from app.routes.v1.auth import router as auth_router
+>>>>>>> origin/main
 from app.db import get_session
 from app.realtime.presence import (
     DB_TIMEOUT, PresenceResult, notify_presence_safely, send_presence_snapshot_safely,
 )
+<<<<<<< HEAD
 
 logger = logging.getLogger(__name__)
 # ROUTES
@@ -42,6 +53,10 @@ app.include_router(users,			prefix="/api/v1/users")
 app.include_router(profiles,		prefix="/api/v1/profiles")
 app.include_router(friendships,		prefix="/api/v1/friendships")
 app.include_router(top10s,			prefix="/api/v1/top10s")
+=======
+
+logger = logging.getLogger(__name__)
+>>>>>>> origin/main
 
 # ROUTES
 from app.routes.v1.settings import router as settings
@@ -66,6 +81,22 @@ app.include_router(users,			prefix="/api/v1/users")
 app.include_router(profiles,		prefix="/api/v1/profiles")
 app.include_router(friendships,		prefix="/api/v1/friendships")
 app.include_router(top10s,			prefix="/api/v1/top10s")
+ALLOWED_WEBSOCKET_ORIGINS = {
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+}
+
+@asynccontextmanager
+async def lifespan(app):
+    manager.start()
+    try:
+        yield
+    finally:
+        await manager.stop()
+
+
+app = FastAPI(lifespan=lifespan)
+
 ALLOWED_WEBSOCKET_ORIGINS = {
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -397,12 +428,19 @@ async def websocket_endpoint(websocket: WebSocket):
             await manager.broadcast(message)
 
     except WebSocketDisconnect:
+<<<<<<< HEAD
         pass
 
     finally:
         manager.disconnect(websocket, user_id)
         manager.disconnect(websocket)
         print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
+=======
+            pass
+
+    finally:
+        manager.disconnect(websocket, user_id)
+>>>>>>> origin/main
 
 
 app.include_router(auth_router, prefix="/api/v1/auth")
