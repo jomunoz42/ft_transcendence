@@ -4,10 +4,7 @@
 # TODO: Add current_user to any current_user-only function (eg. updatetop10)
 # TODO: Review class exception
 
-<<<<<<< HEAD
 from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
-=======
->>>>>>> 34acfc0 (checkpoint)
 import asyncio
 import logging
 from contextlib import asynccontextmanager
