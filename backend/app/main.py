@@ -7,18 +7,6 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
-import asyncio
-import logging
-from contextlib import asynccontextmanager
-
-from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect, status
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
-from app.auth.constants import SESSION_COOKIE_NAME
-from app.auth.websocket import authenticate_websocket
 
 from app.routes.v1.auth import router as auth_router
 
@@ -29,6 +17,8 @@ from app.realtime.presence import (
 
 logger = logging.getLogger(__name__)
 
+
+logger = logging.getLogger(__name__)
 
 # ROUTES
 from app.routes.v1.settings import router as settings
@@ -404,12 +394,10 @@ async def websocket_endpoint(websocket: WebSocket):
             await manager.broadcast(message)
 
     except WebSocketDisconnect:
-        pass
+            pass
 
     finally:
         manager.disconnect(websocket, user_id)
-        manager.disconnect(websocket)
-        print(">>> WEBSOCKET DISCONNECTED <<<", flush=True)
 
 
 app.include_router(auth_router, prefix="/api/v1/auth")
