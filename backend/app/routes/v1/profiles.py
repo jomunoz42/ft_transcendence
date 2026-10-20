@@ -5,6 +5,7 @@ from app.crud.profile import read_profile, read_profiles, update_profile, profil
 from app.crud.user import read_user
 from app.db.models import User
 from app.utils import are_friends
+from app.crud.top10 import create_top10comment, update_top10comment, delete_top10comment, commentCreate
 
 router = APIRouter()
 
@@ -58,3 +59,25 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 		result["comments"] = profile.user.comments
 		result["reactions"] = profile.user.reactions
 	return result
+
+################################################
+# comment
+################################################
+
+@router.post("/{user_id}/comment")
+def post_comment(user_id: int, req: commentCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+	comment = create_top10comment(user_id=user_id, body=req.body, session=session, current_user=current_user)
+	session.commit()
+	return comment
+
+@router.post("/{user_id}/comment/{comment_id}")
+def update_comment(comment_id: int, req: commentCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+	comment = update_top10comment(comment_id=comment_id, body=req.body, session=session, current_user=current_user)
+	session.commit()
+	return comment
+
+@router.post("/{user_id}/comment/{comment_id}")
+def delete_comment(comment_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+	comment = delete_top10comment(comment_id=comment_id, session=session, current_user=current_user)
+	session.commit()
+	return comment
