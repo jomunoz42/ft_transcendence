@@ -1,5 +1,10 @@
 # Realtime development
 
+For Pedro's frontend issue #27, start with the
+[presence integration contract](presence-contract.md): URLs, cookie setup,
+exact messages, a JavaScript client, and a two-account browser test. The
+[issue #7 audit](presence-audit.md) maps acceptance criteria to existing tests.
+
 `/ws` is a server-driven presence connection authenticated with the existing
 `myplaylist_session` cookie. Client text and binary frames are ignored; there is
 no echo, broadcast command, or client-supplied presence update.
