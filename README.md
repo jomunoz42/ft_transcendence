@@ -65,6 +65,9 @@ cp .env.example .env
 
 Fill in the local values in `.env`. This file contains local configuration and secrets and must remain ignored by Git.
 
+See [realtime development](docs/realtime.md) for WebSocket origins, HTTPS,
+presence events, logout behavior, and integration tests.
+
 ### Run
 
 Build and start the complete application:

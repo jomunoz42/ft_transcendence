@@ -17,10 +17,12 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.exc import SQLAlchemyError
 
 import app.main as main
+import app.realtime.manager as realtime_manager
 import app.auth.websocket as websocket_auth
 import app.realtime.presence as presence
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.main import app, manager
+from realtime_helpers import deliver_to_all
 
 ALLOWED_ORIGIN = "http://localhost:5173"
 SESSION_TOKEN = "test-session-token"
@@ -33,6 +35,7 @@ class ASGIWebSocketSession:
         self._incoming = asyncio.Queue()
         self._outgoing = asyncio.Queue()
         self._task = None
+        self._server_tasks = []
         handshake_headers = [
             (name.lower().encode("latin-1"), value.encode("latin-1"))
             for name, value in (headers or {}).items()
@@ -82,6 +85,10 @@ class ASGIWebSocketSession:
         await self.wait_until_closed()
         assert self._outgoing.empty()
 
+    async def queue_server_message(self, text):
+        """Exercise server delivery without granting clients a broadcast command."""
+        self._server_tasks.append(asyncio.create_task(deliver_to_all(manager, text)))
+
     async def send_text(self, text):
         await self._incoming.put({"type": "websocket.receive", "text": text})
 
@@ -91,6 +98,7 @@ class ASGIWebSocketSession:
         return json.loads(message["text"])
 
     async def disconnect(self):
+        await asyncio.gather(*self._server_tasks)
         if self._task.done():
             await self._task
             return
@@ -128,6 +136,13 @@ async def connected_websocket(token=SESSION_TOKEN, *, online_user_ids=()):
 
 
 @pytest.fixture(autouse=True)
+def session_revalidation(monkeypatch):
+    # These transport tests isolate authentication; lifecycle integration tests
+    # exercise revalidation against real committed PostgreSQL sessions.
+    monkeypatch.setattr(realtime_manager.ConnectionManager, "check_session", AsyncMock(return_value=True))
+
+
+@pytest.fixture(autouse=True)
 def forbid_database_access(monkeypatch):
     """Endpoint tests must never reach the configured database."""
     factory = Mock(side_effect=AssertionError("unexpected database access"))
@@ -147,7 +162,7 @@ def friendship_lookup(monkeypatch):
 @pytest.fixture(autouse=True)
 def presence_notification(monkeypatch):
     notify = AsyncMock()
-    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
     return notify
 
 
@@ -213,7 +228,7 @@ async def test_endpoint_rejects_excess_initializations_without_disconnecting_rea
             }
             await excess.wait_until_closed()
             assert len(manager.active_connections[42]) == 2
-            await healthy.send_text("healthy during overload")
+            await healthy.queue_server_message("healthy during overload")
             assert await healthy.receive_json() == {
                 "type": "message", "data": {"text": "healthy during overload"},
             }
@@ -229,17 +244,18 @@ async def test_endpoint_rejects_excess_initializations_without_disconnecting_rea
 
 
 @pytest.mark.anyio
-async def test_broadcast_reaches_all_clients_including_the_sender(authenticated_user):
-    expected_event = {"type": "message", "data": {"text": "hello everyone"}}
-
+@pytest.mark.parametrize("payload", ["hello everyone", '{"type":"presence","data":{"user_id":7,"online":true}}', "x" * 65536])
+async def test_client_frames_never_echo_or_reach_other_users(authenticated_user, payload):
+    authenticated_user.side_effect = lambda token: 7 if token == "other" else 42
     async with connected_websocket() as sender:
-        async with connected_websocket() as recipient:
-            assert len(manager.active_connections[42]) == 2
-
-            await sender.send_text("hello everyone")
-
-            assert await sender.receive_json() == expected_event
-            assert await recipient.receive_json() == expected_event
+        async with connected_websocket("other") as recipient:
+            await sender.send_text(payload)
+            await sender._incoming.put({"type": "websocket.receive", "bytes": b"binary"})
+            # Disconnect is a FIFO barrier: both frames have been consumed.
+            await sender.disconnect()
+            assert sender._outgoing.empty()
+            assert recipient._outgoing.empty()
+            assert not recipient._task.done()
 
 
 @pytest.mark.anyio
@@ -251,7 +267,7 @@ async def test_remaining_client_keeps_receiving_after_another_disconnects(authen
             assert len(manager.active_connections[42]) == 2
 
         assert len(manager.active_connections[42]) == 1
-        await remaining_client.send_text("still here")
+        await remaining_client.queue_server_message("still here")
         assert await remaining_client.receive_json() == expected_event
 
 
@@ -259,10 +275,6 @@ async def test_remaining_client_keeps_receiving_after_another_disconnects(authen
 async def test_unexpected_endpoint_error_still_removes_connection(
     monkeypatch, authenticated_user, presence_notification,
 ):
-    async def fail_to_broadcast(_message):
-        raise RuntimeError("unexpected broadcast failure")
-
-    monkeypatch.setattr(manager, "broadcast", fail_to_broadcast)
     websocket = ASGIWebSocketSession(
         headers={"origin": ALLOWED_ORIGIN},
         cookies={SESSION_COOKIE_NAME: SESSION_TOKEN},
@@ -271,9 +283,13 @@ async def test_unexpected_endpoint_error_still_removes_connection(
     assert await websocket.receive_json() == {
         "type": "presence_snapshot", "data": {"online_user_ids": []},
     }
+    socket = next(iter(manager.active_connections[42]))
+    async def failed_receive():
+        raise RuntimeError("unexpected receive failure")
+    monkeypatch.setattr(socket, "receive", failed_receive)
     await websocket.send_text("trigger failure")
 
-    with pytest.raises(RuntimeError, match="unexpected broadcast failure"):
+    with pytest.raises(RuntimeError, match="unexpected receive failure"):
         await websocket.wait_until_closed()
 
     assert manager.active_connections == {}
@@ -440,7 +456,7 @@ async def test_authentication_runs_in_threadpool_before_accepting(
             "type": "presence_snapshot", "data": {"online_user_ids": []},
         }
         friendship_lookup.assert_called_once_with(42)
-        await websocket.send_text("authenticated 🎵")
+        await websocket.queue_server_message("authenticated 🎵")
         assert await websocket.receive_json() == {
             "type": "message", "data": {"text": "authenticated 🎵"}
         }
@@ -455,12 +471,12 @@ async def test_presence_notifications_follow_first_and_last_tab_transitions(
 ):
     async with connected_websocket() as first_tab:
         # A round trip ensures the endpoint has finished its online notification.
-        await first_tab.send_text("first tab ready")
+        await first_tab.queue_server_message("first tab ready")
         await first_tab.receive_json()
         presence_notification.assert_awaited_once_with(manager, 42, True)
 
         async with connected_websocket() as second_tab:
-            await second_tab.send_text("second tab ready")
+            await second_tab.queue_server_message("second tab ready")
             await first_tab.receive_json()
             await second_tab.receive_json()
             assert len(manager.active_connections[42]) == 2
@@ -476,7 +492,7 @@ async def test_presence_notifications_follow_first_and_last_tab_transitions(
 
     # Reconnecting starts a new online/offline cycle.
     async with connected_websocket() as reconnected:
-        await reconnected.send_text("back again")
+        await reconnected.queue_server_message("back again")
         await reconnected.receive_json()
     assert presence_notification.await_args_list == [
         call(manager, 42, True), call(manager, 42, False),
@@ -489,14 +505,14 @@ async def test_endpoint_delivers_presence_through_real_safe_notifier(
     monkeypatch, authenticated_user,
 ):
     authenticated_user.side_effect = lambda token: 7 if token == "friend-token" else 42
-    monkeypatch.setattr(main, "notify_presence_safely", presence.notify_presence_safely)
+    monkeypatch.setattr(realtime_manager, "notify_presence_safely", presence.notify_presence_safely)
     lookup = Mock(side_effect=lambda user_id: [7] if user_id == 42 else [])
     monkeypatch.setattr(presence, "find_presence_recipients", lookup)
 
     async with connected_websocket("friend-token") as friend:
         async with connected_websocket("friend-token") as friend_tab:
             # Both recipient tabs are registered before the subject connects.
-            await friend_tab.send_text("friends ready")
+            await friend_tab.queue_server_message("friends ready")
             await friend.receive_json()
             await friend_tab.receive_json()
 
@@ -517,7 +533,7 @@ async def test_notification_failure_does_not_terminate_a_healthy_websocket(
     # Keep the actual safe wrapper: replacing it with a raising mock would test
     # behavior the wrapper explicitly prevents.
     safe_notify = AsyncMock(wraps=presence.notify_presence_safely)
-    monkeypatch.setattr(main, "notify_presence_safely", safe_notify)
+    monkeypatch.setattr(realtime_manager, "notify_presence_safely", safe_notify)
     error = RuntimeError("presence lookup unavailable")
     # Online notification fails, snapshot succeeds, then offline fails.
     lookup = Mock(side_effect=[error, [], error])
@@ -526,7 +542,7 @@ async def test_notification_failure_does_not_terminate_a_healthy_websocket(
     with caplog.at_level(logging.ERROR, logger=presence.__name__):
         async with connected_websocket() as websocket:
             for message in ("still healthy", "still receiving"):
-                await websocket.send_text(message)
+                await websocket.queue_server_message(message)
                 assert await websocket.receive_json() == {
                     "type": "message", "data": {"text": message},
                 }
@@ -568,20 +584,20 @@ async def test_unexpected_authentication_error_never_registers_a_connection(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("delivery", ["broadcast", "send_to_user"])
+@pytest.mark.parametrize("delivery", ["server_fanout", "send_to_user"])
 async def test_failed_send_on_final_tab_still_notifies_friends_offline(
     monkeypatch, authenticated_user, presence_notification, delivery,
 ):
     async with connected_websocket() as websocket:
-        await websocket.send_text("ready")
+        await websocket.queue_server_message("ready")
         await websocket.receive_json()
         presence_notification.assert_awaited_once_with(manager, 42, True)
         socket = next(iter(manager.active_connections[42]))
         failed_send = AsyncMock(side_effect=OSError("connection lost"))
         monkeypatch.setattr(socket, "send_json", failed_send)
 
-        if delivery == "broadcast":
-            await manager.broadcast("detect broken socket")
+        if delivery == "server_fanout":
+            await deliver_to_all(manager, "detect broken socket")
         else:
             await manager.send_to_user(42, {"type": "presence"})
 
@@ -596,14 +612,14 @@ async def test_failed_send_on_final_tab_still_notifies_friends_offline(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("cleanup_delivery", ["broadcast", "send_to_user"])
+@pytest.mark.parametrize("cleanup_delivery", ["server_fanout", "send_to_user"])
 @pytest.mark.parametrize("healthy_tab", [False, True], ids=["last-tab", "healthy-sibling"])
 async def test_concurrent_closed_socket_runtime_error_does_not_end_healthy_endpoint(
     monkeypatch, authenticated_user, presence_notification, cleanup_delivery, healthy_tab,
 ):
     # Use actual Starlette state transitions, not a mock raising RuntimeError.
     # These recipient sockets need no endpoint task: the healthy sender below
-    # drives the real application endpoint and its broadcast loop.
+    # drives the real application endpoint and server-originated delivery.
     broken, sibling = [
         WebSocket(
             {"type": "websocket"},
@@ -644,7 +660,7 @@ async def test_concurrent_closed_socket_runtime_error_does_not_end_healthy_endpo
             assert await manager.initialize(sibling, 7)
         cleanup = None
         try:
-            await healthy.send_text("older")
+            await healthy.queue_server_message("older")
             await asyncio.wait_for(send_started.wait(), timeout=1)
             assert await healthy.receive_json() == {
                 "type": "message", "data": {"text": "older"},
@@ -660,8 +676,8 @@ async def test_concurrent_closed_socket_runtime_error_does_not_end_healthy_endpo
                 return await send_event(socket, user_id, event)
 
             monkeypatch.setattr(manager, "send_event", observe_cleanup)
-            if cleanup_delivery == "broadcast":
-                cleanup = asyncio.create_task(manager.broadcast("cleanup"))
+            if cleanup_delivery == "server_fanout":
+                cleanup = asyncio.create_task(deliver_to_all(manager, "cleanup"))
             else:
                 cleanup = asyncio.create_task(manager.send_to_user(
                     7, {"type": "message", "data": {"text": "cleanup"}},
@@ -672,7 +688,7 @@ async def test_concurrent_closed_socket_runtime_error_does_not_end_healthy_endpo
             await asyncio.wait_for(older_failed.wait(), timeout=1)
             await asyncio.wait_for(cleanup, timeout=1)
             await asyncio.wait_for(manager.presence_queue.join(), timeout=1)
-            if cleanup_delivery == "broadcast":
+            if cleanup_delivery == "server_fanout":
                 assert await healthy.receive_json() == {
                     "type": "message", "data": {"text": "cleanup"},
                 }
@@ -680,7 +696,7 @@ async def test_concurrent_closed_socket_runtime_error_does_not_end_healthy_endpo
 
             # A fresh round trip proves the older send's real RuntimeError
             # did not escape into the healthy endpoint and run its finally.
-            await healthy.send_text("still connected")
+            await healthy.queue_server_message("still connected")
             assert await healthy.receive_json() == {
                 "type": "message", "data": {"text": "still connected"},
             }
@@ -723,9 +739,9 @@ async def test_second_tab_snapshot_is_private_to_the_new_connection(
         async with connected_websocket("outsider") as outsider:
             async with connected_websocket(online_user_ids=[7]) as first_tab:
                 async with connected_websocket(online_user_ids=[7]) as new_tab:
-                    # A broadcast is a barrier after snapshot creation and online
+                    # A server delivery is a barrier after snapshot creation and online
                     # notification, and exposes any extra snapshot on any tab.
-                    await new_tab.send_text("all tabs ready")
+                    await new_tab.queue_server_message("all tabs ready")
                     for socket in (friend, outsider, first_tab, new_tab):
                         assert await socket.receive_json() == {
                             "type": "message", "data": {"text": "all tabs ready"},
@@ -758,10 +774,10 @@ async def test_registration_schedules_online_before_snapshot_delivery(
         assert connection_manager is manager
         assert snapshot_finished == ([] if online else [user_id])
 
-    monkeypatch.setattr(main, "send_presence_snapshot_safely", send_snapshot)
+    monkeypatch.setattr(realtime_manager, "send_presence_snapshot_safely", send_snapshot)
     presence_notification.side_effect = notified
     async with connected_websocket() as websocket:
-        await websocket.send_text("ready")
+        await websocket.queue_server_message("ready")
         assert await websocket.receive_json() == {
             "type": "message", "data": {"text": "ready"},
         }
@@ -774,12 +790,12 @@ async def test_snapshot_database_failure_closes_initializing_socket_and_keeps_fr
     monkeypatch, authenticated_user, friendship_lookup, manager_connect, caplog, error_type,
 ):
     authenticated_user.side_effect = lambda token: 7 if token == "friend" else 42
-    monkeypatch.setattr(main, "notify_presence_safely", presence.notify_presence_safely)
+    monkeypatch.setattr(realtime_manager, "notify_presence_safely", presence.notify_presence_safely)
     error = error_type("snapshot database lookup unavailable")
 
     with caplog.at_level(logging.ERROR, logger=presence.__name__):
         async with connected_websocket("friend") as friend:
-            await friend.send_text("friend ready")
+            await friend.queue_server_message("friend ready")
             await friend.receive_json()
             friendship_lookup.reset_mock()
             friendship_lookup.side_effect = [[7], error, [7], []]
@@ -797,7 +813,7 @@ async def test_snapshot_database_failure_closes_initializing_socket_and_keeps_fr
                     assert await friend.receive_json() == {
                         "type": "presence", "data": {"user_id": 42, "online": online},
                     }
-                await friend.send_text("still healthy")
+                await friend.queue_server_message("still healthy")
                 assert await friend.receive_json() == {
                     "type": "message", "data": {"text": "still healthy"},
                 }
@@ -820,7 +836,7 @@ async def test_snapshot_transport_failure_exits_endpoint_without_receiving(
     friendship_lookup.side_effect = lambda user_id: [7] if user_id == 42 else []
     # Observe both cleanup and endpoint notifications through the real notifier.
     notify = AsyncMock(wraps=presence.notify_presence_safely)
-    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
     monkeypatch.setattr(presence, "notify_presence_safely", notify)
     error = failure()
     failed_send = AsyncMock(side_effect=error)
@@ -839,7 +855,7 @@ async def test_snapshot_transport_failure_exits_endpoint_without_receiving(
 
     async with AsyncExitStack() as stack:
         friend = await stack.enter_async_context(connected_websocket("friend"))
-        await friend.send_text("friend ready")
+        await friend.queue_server_message("friend ready")
         assert await friend.receive_json() == {
             "type": "message", "data": {"text": "friend ready"},
         }
@@ -876,7 +892,7 @@ async def test_snapshot_transport_failure_exits_endpoint_without_receiving(
             friendship_lookup.assert_called_once_with(42)
             assert not sibling._task.done()
             # Actual traffic proves the surviving endpoint remains usable.
-            await sibling.send_text("healthy tab still online")
+            await sibling.queue_server_message("healthy tab still online")
             for recipient in (sibling, friend):
                 assert await recipient.receive_json() == {
                     "type": "message", "data": {"text": "healthy tab still online"},
@@ -902,3 +918,23 @@ async def test_snapshot_transport_failure_exits_endpoint_without_receiving(
     assert records[0].levelno == logging.ERROR
     assert records[0].getMessage() == "Failed to send presence snapshot for user 42"
     assert records[0].exc_info[1] is error
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("origin, allowed", [
+    ("https://music.example", True), ("https://music.example:8443", True),
+    (ALLOWED_ORIGIN, False), ("http://music.example", False),
+    ("https://music.example.evil.test", False), ("https://music.example:8444", False),
+])
+async def test_configured_https_origins_replace_local_allowlist(monkeypatch, authenticated_user, origin, allowed):
+    from app.realtime.config import allowed_websocket_origins
+    monkeypatch.setenv("WEBSOCKET_ALLOWED_ORIGINS", "https://music.example, https://music.example:8443")
+    monkeypatch.setattr(main, "ALLOWED_WEBSOCKET_ORIGINS", allowed_websocket_origins())
+    socket = ASGIWebSocketSession(headers={"origin": origin}, cookies={SESSION_COOKIE_NAME: SESSION_TOKEN})
+    if allowed:
+        await socket.connect()
+        await socket.receive_json()
+        await socket.disconnect()
+    else:
+        await socket.assert_rejected()
+        authenticated_user.assert_not_called()
