@@ -3,7 +3,7 @@
 import datetime
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 
 from app.auth.registration import register_user
 from app.auth.sessions import end_session, start_session, user_for_token
@@ -86,14 +86,17 @@ def test_two_logins_are_independent_and_ending_one_keeps_the_other(session):
     assert user_for_token(session, phone) == alice
 
 
-def test_a_new_session_expires_in_seven_days(session):
+def test_a_new_session_lasts_exactly_168_hours_even_across_a_clock_change(session):
+    # A made-up zone whose clocks jump forward three days from today, so the week always crosses it.
+    jump_day = (datetime.date.today().timetuple().tm_yday + 2) % 365
+    session.execute(text(f"SET LOCAL TIME ZONE 'AAA0BBB,{jump_day}/0,{(jump_day + 180) % 365}/0'"))
     alice = register_user(session, "alice@x.com", "hunter22", "Alice")
     start_session(session, alice)
 
     stored = session.scalars(select(UserSession).where(UserSession.user_id == alice.id)).one()
     session.refresh(stored)
 
-    assert stored.expires_at - stored.created_at == datetime.timedelta(days=7)
+    assert stored.expires_at - stored.created_at == datetime.timedelta(hours=168)
 
 
 @pytest.mark.parametrize("token", [None, ""])

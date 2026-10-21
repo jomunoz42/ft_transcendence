@@ -29,7 +29,9 @@ def start_session(session: Session, user: User) -> str:
         delete(UserSession).where(UserSession.user_id == user.id, UserSession.expires_at <= func.now())
     )
     token = secrets.token_urlsafe(32)
-    session.add(UserSession(user_id=user.id, token_hash=_hash(token), expires_at=func.now() + SESSION_LIFETIME))
+    # Seconds, not the timedelta: Postgres reads "7 days" as calendar days and stretches them over a clock change.
+    lifetime = func.make_interval(0, 0, 0, 0, 0, 0, SESSION_LIFETIME.total_seconds())
+    session.add(UserSession(user_id=user.id, token_hash=_hash(token), expires_at=func.now() + lifetime))
     session.flush()
     return token
 

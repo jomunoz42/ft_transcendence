@@ -22,6 +22,7 @@ that is not here? Ask André, and the answer gets added.
 - [Why are passwords never stripped, when emails are?](#why-are-passwords-never-stripped-when-emails-are)
 - [Why does a failed login for an unknown email still hash a password?](#why-does-a-failed-login-for-an-unknown-email-still-hash-a-password)
 - [Why a session cookie and not a JWT?](#why-a-session-cookie-and-not-a-jwt)
+- [Why does `start_session` send the lifetime as seconds?](#why-does-start_session-send-the-lifetime-as-seconds)
 
 ---
 
@@ -187,3 +188,17 @@ The team agreed on it in issue #14.
 - Browsers send the cookie on WebSocket connections too, so real-time features
   reuse the same login with no extra work.
 - No signing secret to manage, so there is no `JWT_SECRET`.
+
+### Why does `start_session` send the lifetime as seconds?
+
+So a session lasts exactly 168 hours, whatever timezone the database uses.
+
+- A Python `timedelta(days=7)` reaches Postgres as `interval '7 days'`, and
+  Postgres adds days on the calendar: "same clock time, 7 days later".
+- In a timezone with summer time, a week that crosses the clock change is
+  167 or 169 hours long. In UTC (our containers) it is always 168.
+- `timedelta(hours=168)` does not help: Python stores it as 7 days, so the
+  driver still sends `'7 days'`.
+- `make_interval(secs => 604800)` is a fixed length of time, so the clock
+  change cannot stretch it. The test forces a timezone whose clocks jump during
+  that week, so it fails every time if this goes back to days.
