@@ -66,7 +66,7 @@ session.commit()
   laptop and a phone stay logged in independently. It also deletes that user's
   expired sessions, so dead rows do not pile up.
 - `user_for_token(session, token) -> User | None`: `None` when the token is
-  missing, unknown, expired (7 days, `SESSION_LIFETIME`), or the user is
+  missing, unknown, expired (exactly 168 hours, `SESSION_LIFETIME`), or the user is
   soft-deleted.
 - `end_session(session, token)`: logs that one token out. Unknown or
   already-ended tokens are ignored, so logging out twice is fine.
