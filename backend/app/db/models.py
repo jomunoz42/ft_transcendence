@@ -147,6 +147,15 @@ Index(
 )
 
 
+class Block(Base):
+    __tablename__ = "blocks"
+    __table_args__ = (CheckConstraint("blocker_id <> blocked_id", name="ck_blocks_not_self"),)
+
+    blocker_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True,)
+    blocked_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Top10Comment(Base):
     __tablename__ = "top10_comments"
     __table_args__ = (
