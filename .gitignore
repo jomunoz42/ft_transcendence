@@ -38,6 +38,7 @@ CLAUDE.md
 AGENTS.md
 docs/agents/
 .scratch/
+.vibe-wise/
 
 # Logs and runtime files
 *.log
