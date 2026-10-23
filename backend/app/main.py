@@ -1,12 +1,19 @@
+# TODO: Update HTTPExceptions to match the right error status code
+# TODO: Add tests
+# TODO: Update current_user_id with Andre's function
+# TODO: Add current_user to any current_user-only function (eg. updatetop10)
+# TODO: Review class exception
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect, status
+from app.routes.v1.auth import router as auth_router
+
+from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
@@ -17,7 +24,49 @@ from app.realtime.manager import ConnectionManager
 from app.realtime.presence import DB_TIMEOUT
 
 logger = logging.getLogger(__name__)
+# ROUTES
+from app.routes.v1.settings import router as settings
+from app.routes.v1.users import router as users
+from app.routes.v1.profiles import router as profiles
+from app.routes.v1.friendships import router as friendships
+from app.routes.v1.top10s import router as top10s
 
+app = FastAPI()
+app.include_router(settings,		prefix="/api/v1/settings")
+app.include_router(users,			prefix="/api/v1/users")
+app.include_router(profiles,		prefix="/api/v1/profiles")
+app.include_router(friendships,		prefix="/api/v1/friendships")
+app.include_router(top10s,			prefix="/api/v1/top10s")
+
+logger = logging.getLogger(__name__)
+
+# ROUTES
+from app.routes.v1.settings import router as settings
+from app.routes.v1.users import router as users
+from app.routes.v1.profiles import router as profiles
+from app.routes.v1.friendships import router as friendships
+from app.routes.v1.top10s import router as top10s
+@asynccontextmanager
+async def lifespan(app):
+    manager.start()
+    try:
+        yield
+    finally:
+        await manager.stop()
+
+
+app = FastAPI(lifespan=lifespan)
+
+app = FastAPI()
+app.include_router(settings,		prefix="/api/v1/settings")
+app.include_router(users,			prefix="/api/v1/users")
+app.include_router(profiles,		prefix="/api/v1/profiles")
+app.include_router(friendships,		prefix="/api/v1/friendships")
+app.include_router(top10s,			prefix="/api/v1/top10s")
+ALLOWED_WEBSOCKET_ORIGINS = {
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+}
 
 @asynccontextmanager
 async def lifespan(app):
