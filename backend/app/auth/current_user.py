@@ -3,16 +3,15 @@
 from fastapi import Cookie, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import user_for_token
 from app.db import get_session
 from app.db.models import User
 
-SESSION_COOKIE = "session"
-
 
 def current_user(
     session: Session = Depends(get_session),
-    token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ) -> User:
     """The user the session cookie logs in; 401 if the cookie is missing, unknown, or expired."""
     user = user_for_token(session, token)

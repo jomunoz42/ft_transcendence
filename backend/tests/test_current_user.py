@@ -8,7 +8,8 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from app.auth.current_user import SESSION_COOKIE, current_user
+from app.auth.constants import SESSION_COOKIE_NAME as SESSION_COOKIE
+from app.auth.current_user import current_user
 from app.auth.registration import register_user
 from app.auth.sessions import end_session, start_session
 from app.db import get_session

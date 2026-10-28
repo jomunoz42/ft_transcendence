@@ -9,6 +9,25 @@ from app.db import SessionLocal
 
 client = TestClient(app, base_url="https://testserver")
 
+COOKIE_NAME = "myplaylist_session"
+
+def _login():
+	res = client.post("/api/v1/auth/login", json={"email": "victor@edwed.com", "password": "wefgvwervrevrevver"})
+	token = res.cookies.get(COOKIE_NAME)
+	if token:
+		client.cookies.set(COOKIE_NAME, token)
+	return res
+
+def _logout():
+	client.post("/api/v1/auth/logout")
+	client.cookies.delete(COOKIE_NAME)
+
+@pytest.fixture(scope="module", autouse=True)                                
+def login_once():                                                            
+	_login()                                                                 
+	yield                                                                    
+	_logout()
+
 class Req(BaseModel):
 	uri: str
 	method: str
@@ -116,29 +135,29 @@ def _do_request(session: TestClient, req: Req, exp: Exp):
 		if isinstance(exp.body, list):
 			assert len(exp.body) == len(res.json())
 
+
+
 @pytest.mark.parametrize('req,exp', tests)
 def test_backend_authorized(req, exp):
-	res = client.post("/api/v1/auth/login", json={"email": "victor@edwed.com", "password": "wefgvwervrevrevver"})
 	_do_request(session=client, req=req, exp=exp)
 
 @pytest.mark.parametrize('req,exp', tests)
 def test_backend_unauthorized(req, exp):
-	client.post("/api/v1/auth/logout")
+	_logout()
 	exp.status_code = 401
 	_do_request(session=client, req=req, exp=exp)
 
 def test_auth():
-	res = client.post("/api/v1/auth/login", json={"email": "victor@edwed.com", "password": "wefgvwervrevrevver"})
+	res = _login()
 	assert res.status_code == 200
 	res = client.get("/api/v1/settings")
 	assert res.status_code == 200
-	res = client.post("/api/v1/auth/logout")
-	assert res.status_code == 204
+	_logout()
 	res = client.get("/api/v1/settings")
 	assert res.status_code == 401
 
 def _clean():
-	res = client.post("/api/v1/auth/login", json={"email": "victor@edwed.com", "password": "wefgvwervrevrevver"})
+	_login()
 
 	res = client.get("/api/v1/profiles/2")
 

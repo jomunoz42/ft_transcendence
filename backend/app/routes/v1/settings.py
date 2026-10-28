@@ -21,15 +21,6 @@ def update_me(data: UserUpdate, current_user: User = Depends(current_user), sess
 	try:
 		user = update_user(user_id=current_user.id, data=data, session=session)
 	except Exception as error:
-		session.rollback()
-		raise HTTPException(status_code=400, detail=str(error))
-
-@router.post("")
-@router.post("/")
-def update_me(data: UserUpdate, current_user: User = Depends(current_user), session: Session = Depends(get_session)):
-	try:
-		user = update_user(user_id=current_user.id, data=data, session=session)
-	except Exception as error:
 		HTTPException(status_code=400, detail=str(error))
 		session.rollback()
 	session.commit()
