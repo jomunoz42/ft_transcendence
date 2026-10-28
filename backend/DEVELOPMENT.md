@@ -150,13 +150,13 @@ uvicorn app.main:app --reload
 ```
 
 ## Models
-![alt text](assets/models.png)
+![alt text](docs/victor_assets/models.png)
 
 ## Flow
-![alt text](assets/flow.png)
+![alt text](docs/victor_assets/flow.png)
 
 ## Tree
-![alt text](assets/tree.png)
+![alt text](docs/victor_assets/tree.png)
 
 ## Coding practices
 
