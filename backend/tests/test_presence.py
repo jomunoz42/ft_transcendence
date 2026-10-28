@@ -7,6 +7,7 @@ These tests verify queries, not PostgreSQL migration compatibility.
 """
 
 import asyncio
+import datetime
 import logging
 from unittest.mock import AsyncMock, MagicMock, Mock, call
 
@@ -16,8 +17,9 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base, Friendship, User
-from app.main import ConnectionManager
-import app.main as main
+from app.realtime.manager import ConnectionManager
+from realtime_helpers import deliver_to_all
+import app.realtime.manager as realtime_manager
 import app.realtime.presence as presence
 
 
@@ -33,6 +35,7 @@ async def flush_presence(manager):
 
 @pytest.fixture(autouse=True)
 def ready_connections(monkeypatch):
+    monkeypatch.setattr(ConnectionManager, "check_session", AsyncMock(return_value=True))
     # Query/unit tests begin with initialized sockets. Dispatcher tests cover
     # the real registration -> snapshot -> live delivery sequence.
     connect = ConnectionManager.connect
@@ -87,7 +90,7 @@ def test_only_accepted_friends_in_either_direction_are_recipients(
     presence_database, user_id, expected,
 ):
     with presence_database() as session:
-        assert sorted(presence.get_presence_recipients(session, user_id)) == expected
+        assert sorted([friend.id for friend in presence.list_friends(session, user_id)]) == expected
 
 
 @pytest.mark.parametrize("user_id", [4, 5, 6, 7, 8, 9, 12, 999], ids=[
@@ -96,7 +99,7 @@ def test_only_accepted_friends_in_either_direction_are_recipients(
 ])
 def test_users_without_accepted_friends_have_no_recipients(presence_database, user_id):
     with presence_database() as session:
-        assert presence.get_presence_recipients(session, user_id) == []
+        assert [friend.id for friend in presence.list_friends(session, user_id)] == []
 
 
 def test_find_presence_recipients_uses_and_closes_its_own_session(presence_database, monkeypatch):
@@ -342,7 +345,7 @@ async def test_failed_snapshot_send_removes_dead_socket(
     if healthy_tab:
         await manager.connect(sibling, 1)
     notify = AsyncMock(wraps=presence.notify_presence_safely)
-    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
     await flush_presence(manager)
     notify.reset_mock()
     friend.send_json.reset_mock()
@@ -371,7 +374,7 @@ async def test_failed_snapshot_send_removes_dead_socket(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("delivery", ["broadcast", "send_to_user"])
+@pytest.mark.parametrize("delivery", ["server_fanout", "send_to_user"])
 @pytest.mark.parametrize("healthy_tab", [False, True], ids=["last-tab", "healthy-sibling"])
 async def test_failed_send_cleanup_delivers_offline_presence_to_friends(
     presence_database, monkeypatch, delivery, healthy_tab,
@@ -383,7 +386,7 @@ async def test_failed_send_cleanup_delivers_offline_presence_to_friends(
     if healthy_tab:
         await manager.connect(sibling, 1)
     notify = AsyncMock(wraps=presence.notify_presence_safely)
-    monkeypatch.setattr(main, "notify_presence_safely", notify)
+    monkeypatch.setattr(realtime_manager, "notify_presence_safely", notify)
     await flush_presence(manager)
     notify.reset_mock()
     for socket in (broken, sibling, friend, outsider):
@@ -391,23 +394,43 @@ async def test_failed_send_cleanup_delivers_offline_presence_to_friends(
     broken.send_json.side_effect = OSError("connection lost")
     message = {"type": "message", "data": {"text": "detect failure"}}
 
-    if delivery == "broadcast":
-        await manager.broadcast("detect failure")
+    if delivery == "server_fanout":
+        await deliver_to_all(manager, "detect failure")
     else:
         await manager.send_to_user(1, message)
 
     await flush_presence(manager)
     broken.send_json.assert_awaited_once_with(message)
     assert manager.active_connections.get(1, set()) == ({sibling} if healthy_tab else set())
-    expected_friend_events = [message] if delivery == "broadcast" else []
+    expected_friend_events = [message] if delivery == "server_fanout" else []
     if not healthy_tab:
         expected_friend_events.append({"type": "presence", "data": {"user_id": 1, "online": False}})
     assert [args.args[0] for args in friend.send_json.await_args_list] == expected_friend_events
     assert [args.args[0] for args in outsider.send_json.await_args_list] == (
-        [message] if delivery == "broadcast" else []
+        [message] if delivery == "server_fanout" else []
     )
     if healthy_tab:
         notify.assert_not_awaited()
         sibling.send_json.assert_awaited_once_with(message)
     else:
         notify.assert_awaited_once_with(manager, 1, False)
+
+
+@pytest.mark.anyio
+async def test_deleted_friends_are_excluded_from_snapshots_and_delivery(presence_database):
+    with presence_database.begin() as session:
+        session.get(User, 2).deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    assert presence.find_presence_recipients(1) == [3]
+    manager = ConnectionManager()
+    subject, deleted, friend = [MagicMock(spec=WebSocket) for _ in range(3)]
+    for user_id, socket in ((1, subject), (2, deleted), (3, friend)):
+        await manager.connect(socket, user_id)
+    await presence.send_presence_snapshot(manager, subject, 1)
+    subject.send_json.assert_awaited_once_with({
+        "type": "presence_snapshot", "data": {"online_user_ids": [3]},
+    })
+    await presence.notify_presence(manager, 1, True)
+    deleted.send_json.assert_not_awaited()
+    friend.send_json.assert_awaited_once_with({
+        "type": "presence", "data": {"user_id": 1, "online": True},
+    })

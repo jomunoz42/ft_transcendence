@@ -10,7 +10,8 @@ from app.auth.login import InvalidCredentials, authenticate
 from app.auth.registration import EmailTaken, InvalidRegistration, register_user
 from app.auth.sessions import SESSION_LIFETIME, end_session, start_session
 from app.db import get_session, _public
-from app.db.models import User, Profile
+from app.db.models import User
+from app.realtime.notifications import LogoutNotifier, get_logout_notifier
 
 router = APIRouter()
 
@@ -71,9 +72,11 @@ def logout(
     response: Response,
     session: Session = Depends(get_session),
     token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    notify_logout: LogoutNotifier = Depends(get_logout_notifier),
 ) -> None:
     """End this browser's session and clear its cookie; 204 even if it was not logged in."""
     if token:
         end_session(session, token)
         session.commit()
+        notify_logout(token)
     response.delete_cookie(SESSION_COOKIE_NAME, httponly=True, secure=True, samesite="lax")
