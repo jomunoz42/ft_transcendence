@@ -1,5 +1,7 @@
 # `version` is obsolete for docker compose v2, but docker-compose v1.29 (what is
 # installed locally right now) still needs it to read the v3 format.
+version: "3.9"
+
 services:
   postgres:
     image: postgres:17-alpine

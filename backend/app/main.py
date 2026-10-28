@@ -7,23 +7,19 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-
+from starlette.concurrency import run_in_threadpool
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
-from starlette.concurrency import run_in_threadpool
 from app.db import get_session
 from app.realtime.config import allowed_websocket_origins
 from app.realtime.manager import ConnectionManager
 from app.realtime.presence import DB_TIMEOUT
 
-ALLOWED_WEBSOCKET_ORIGINS = {
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-}
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app):
@@ -33,7 +29,6 @@ async def lifespan(app):
     finally:
         await manager.stop()
 
-logger = logging.getLogger(__name__)
 app = FastAPI(lifespan=lifespan)
 
 ALLOWED_WEBSOCKET_ORIGINS = allowed_websocket_origins()
