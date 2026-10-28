@@ -9,8 +9,8 @@ from app.auth.current_user import current_user
 from app.auth.login import InvalidCredentials, authenticate
 from app.auth.registration import EmailTaken, InvalidRegistration, register_user
 from app.auth.sessions import SESSION_LIFETIME, end_session, start_session
-from app.db import get_session
-from app.db.models import User
+from app.db import get_session, _public
+from app.db.models import User, Profile
 
 router = APIRouter()
 

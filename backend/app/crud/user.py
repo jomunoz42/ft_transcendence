@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 <<<<<<< HEAD
+<<<<<<< HEAD
 from datetime import datetime, timezone
 from app.auth.passwords import hash_password
 
@@ -17,6 +18,12 @@ class userSignup(BaseModel):
 
 class userUpdate(BaseModel):
 >>>>>>> 1604070 (checkpoint)
+=======
+from datetime import datetime, timezone
+from app.auth.passwords import hash_password
+
+class UserUpdate(BaseModel):
+>>>>>>> b344a7e (final)
 	email: Optional[str] = None
 	password: Optional[str] = None
 
@@ -31,6 +38,7 @@ class ErrorUpdatingUser(Exception):
 class ErrorDeletingUser(Exception):
     pass
 
+<<<<<<< HEAD
 def read_user(user_id: int, session: Session):
 	try:
 		user = session.query(User).where(User.id == user_id).first()
@@ -92,6 +100,8 @@ def delete_user(user: User):
 		raise Exception(error)
 	return user
 
+=======
+>>>>>>> b344a7e (final)
 def read_user(user_id: int, session: Session):
 	try:
 		user = session.query(User).where(User.id == user_id).first()
@@ -99,18 +109,14 @@ def read_user(user_id: int, session: Session):
 		raise ErrorReadingUser("error reading user")
 	return user
 
-def update_user(user_id: int, data: userUpdate, session: Session):
+def update_user(user_id: int, data: UserUpdate, session: Session):
 	user = session.query(User).where(User.id == user_id).first()
 	try:
-		userData = data.model_dump(exclude_none=True, exclude_unset=True)
-		for k, v in userData.items():
-			if k == 'password':
-				setattr(user, "password_hash", hash_password(v))
-			if k == 'email':
-				setattr(user, k, v)
-				setattr(user, "is_verified", False)
-			else:
-				setattr(user, k, v)
+		if data.password is not None:
+			setattr(user, "password_hash", hash_password(data.password))
+		if data.email is not None:
+			setattr(user, "email", data.email)
+			setattr(user, "is_verified", False)
 		session.flush()
 	except:
 		raise ErrorUpdatingUser("error updating user")
@@ -118,9 +124,14 @@ def update_user(user_id: int, data: userUpdate, session: Session):
 
 def delete_user(user_id: int, session: Session):
 	try:
-		user = session.query(User).where(User.id == user_id).delete()
+		user = session.query(User).where(User.id == user_id).first()
+		user.deleted_at = datetime.now(timezone.utc)
 		session.flush()
 	except:
 		raise ErrorDeletingUser("error deleting user")
+<<<<<<< HEAD
 	return user
 >>>>>>> 1604070 (checkpoint)
+=======
+	return None
+>>>>>>> b344a7e (final)

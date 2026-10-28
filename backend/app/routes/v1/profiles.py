@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # TODO: Fix the /me profiles
 # TODO: Add rolllback on comments failure
 
@@ -14,14 +15,27 @@ from app.db.friendships import are_friends
 from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
 from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
 =======
+=======
+# TODO: Fix the /me profiles
+# TODO: Add rolllback on comments failure
+
+>>>>>>> b344a7e (final)
 from fastapi import APIRouter, Depends, HTTPException, responses
 from sqlalchemy.orm import Session
-from app.db import get_session, get_current_user
-from app.crud.profile import read_profile, read_profiles, update_profile, profileUpdate
+from app.db import get_session
+from app.auth.current_user import current_user
+from app.crud.profile import read_profile, read_profiles, update_profile, ProfileUpdate
 from app.crud.user import read_user
+from app.db import _me_profile
 from app.db.models import User
+<<<<<<< HEAD
 from app.utils import are_friends
 >>>>>>> 1604070 (checkpoint)
+=======
+from app.db.friendships import are_friends
+from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
+from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
+>>>>>>> b344a7e (final)
 
 router = APIRouter()
 
@@ -32,10 +46,14 @@ router = APIRouter()
 @router.get("")
 @router.get("/")
 <<<<<<< HEAD
+<<<<<<< HEAD
 def get_profiles(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 =======
 def get_profiles(session: Session = Depends(get_session)):
 >>>>>>> 1604070 (checkpoint)
+=======
+def get_profiles(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+>>>>>>> b344a7e (final)
 	try:
 		profiles = read_profiles(session)
 	except Exception as error:
@@ -43,10 +61,14 @@ def get_profiles(session: Session = Depends(get_session)):
 	return profiles
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b344a7e (final)
 ################################################
 # /me
 ################################################
 
+<<<<<<< HEAD
 @router.get("/me")
 def get_me(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	profile = read_profile(profile_id=current_user.profile.id, session=session)
@@ -61,19 +83,26 @@ def update_me(data: ProfileUpdate, session: Session = Depends(get_session), curr
 	try:
 		user = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
 =======
+=======
+>>>>>>> b344a7e (final)
 @router.get("/me")
-def get_me(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+def get_me(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	profile = read_profile(profile_id=current_user.profile.id, session=session)
+	user = read_user(user_id=current_user.id, session=session)
 	if not profile:
 		raise HTTPException(status_code=404, detail="profile not found")
-	profile.user # TODO: Ask why this work to see the user in the response
-	return profile
+	return _me_profile(profile) |\
+		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
 
 @router.post("/me")
-def update_me(data: profileUpdate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+def update_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	try:
+<<<<<<< HEAD
 		user = update_profile(profile_id=current_user.profile.id, data=data, session=session)
 >>>>>>> 1604070 (checkpoint)
+=======
+		user = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
+>>>>>>> b344a7e (final)
 	except Exception as error:
 		session.rollback()
 		raise HTTPException(status_code=400, detail=str(error))
@@ -81,16 +110,24 @@ def update_me(data: profileUpdate, session: Session = Depends(get_session), curr
 	return user
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b344a7e (final)
 ################################################
 # /{user_id}
 ################################################
 
+<<<<<<< HEAD
 @router.get("/{user_id}")
 def get_profile(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 =======
 @router.get("/{user_id}")
 def get_profile(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
 >>>>>>> 1604070 (checkpoint)
+=======
+@router.get("/{user_id}")
+def get_profile(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+>>>>>>> b344a7e (final)
 	is_owner = (user_id == current_user.id)
 	if is_owner:
 		return responses.RedirectResponse(url="me", status_code=303)

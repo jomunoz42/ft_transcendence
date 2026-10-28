@@ -14,10 +14,14 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 <<<<<<< HEAD
+<<<<<<< HEAD
 from .models import User, Profile
 =======
 from .models import User
 >>>>>>> 2c38698 (before rebase)
+=======
+from .models import User, Profile
+>>>>>>> b344a7e (final)
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
@@ -33,6 +37,9 @@ def get_session():
         session.close()
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b344a7e (final)
 # ##############################
 # serializers
 # ##############################
@@ -48,6 +55,7 @@ def _me_profile(profile: Profile) -> dict:
 def _public(user: User) -> dict:
     """The user fields the API may show; never the password hash."""
     return {"id": user.id, "email": user.email, "display_name": user.profile.display_name}
+<<<<<<< HEAD
 =======
 def get_current_user():
     user_id = os.environ["CURRENT_USERID"]
@@ -58,3 +66,5 @@ def get_current_user():
     finally:
         session.close()
 >>>>>>> 2c38698 (before rebase)
+=======
+>>>>>>> b344a7e (final)

@@ -7,25 +7,24 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from fastapi import Depends, FastAPI, APIRouter, Response, WebSocket, WebSocketDisconnect, status
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
-from app.routes.v1.auth import router as auth_router
-
+from app.auth.constants import SESSION_COOKIE_NAME
+from app.auth.websocket import authenticate_websocket
+from starlette.concurrency import run_in_threadpool
 from app.db import get_session
 from app.realtime.presence import (
     DB_TIMEOUT, PresenceResult, notify_presence_safely, send_presence_snapshot_safely,
 )
 
-logger = logging.getLogger(__name__)
+ALLOWED_WEBSOCKET_ORIGINS = {
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+}
 
-
-logger = logging.getLogger(__name__)
-
-# ROUTES
-from app.routes.v1.settings import router as settings
-from app.routes.v1.users import router as users
-from app.routes.v1.profiles import router as profiles
-from app.routes.v1.friendships import router as friendships
-from app.routes.v1.top10s import router as top10s
 @asynccontextmanager
 async def lifespan(app):
     manager.start()
@@ -34,19 +33,16 @@ async def lifespan(app):
     finally:
         await manager.stop()
 
-
+logger = logging.getLogger(__name__)
 app = FastAPI(lifespan=lifespan)
 
-app = FastAPI()
-app.include_router(settings,		prefix="/api/v1/settings")
-app.include_router(users,			prefix="/api/v1/users")
-app.include_router(profiles,		prefix="/api/v1/profiles")
-app.include_router(friendships,		prefix="/api/v1/friendships")
-app.include_router(top10s,			prefix="/api/v1/top10s")
-ALLOWED_WEBSOCKET_ORIGINS = {
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-}
+# ROUTES
+from app.routes.v1.auth import router as auth
+app.include_router(auth, prefix="/api/v1/auth")
+from app.routes.v1.settings import router as settings
+app.include_router(settings, prefix="/api/v1/settings")
+from app.routes.v1.profiles import router as profiles
+app.include_router(profiles, prefix="/api/v1/profiles")
 
 @asynccontextmanager
 async def lifespan(app):
@@ -398,6 +394,3 @@ async def websocket_endpoint(websocket: WebSocket):
 
     finally:
         manager.disconnect(websocket, user_id)
-
-
-app.include_router(auth_router, prefix="/api/v1/auth")
