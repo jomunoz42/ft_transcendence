@@ -1,0 +1,128 @@
+####################################
+# REFERENCES
+####################################
+
+USER:
+  description:
+    Current user. Requests are made on its behalf.
+TARGET:
+  description:
+    Another user. Endpoints can try to access public
+    information (eg. /profiles/{user_id=TARGET}).
+FRIENDS:
+  description:
+    Two users are considered friends when one of them
+    sent a friend request to the other, and that the
+    other user accepted this request.
+
+####################################
+# RULES
+####################################
+
+IS_AUTHENTICATED:
+  description: Needs to be authenticated to request.
+IS_CURRENT_USER:
+  description: USER-specific endpoint. Only USER can access its own resource.
+ARE_FRIENDS_OR_PUBLIC:
+  description: When a USER + TARGET are considered FRIENDS. If not, only TARGET public data/endpoint can proceed.
+ARE_FRIENDS_OR_NOTHING:
+  description: When a USER + TARGET are considered FRIENDS. If not, nothing proceed.
+IS_PUBLIC_TOP10:
+  description: When TARGET is publicly sharing its top 10.
+
+####################################
+# API TREE
+####################################
+
+api:
+  v1:
+
+    auth:
+      description: TEXT
+      methods: []
+
+      register:
+        description: TEXT
+        methods:
+          - POST:
+            description: TEXT
+            rules: []
+
+      login:
+        description: TEXT
+        methods:
+          - POST:
+            description: TEXT
+            rules: []
+
+      me:
+        description: TEXT
+        methods:
+          - GET:
+            description: TEXT
+            rules: [IS_AUTHENTICATED]
+
+      logout:
+        description: TEXT
+        methods:
+          - POST:
+            description: TEXT
+            rules: []
+
+    profiles:
+      description: TEXT
+      methods:
+        - GET:
+          description: TEXT
+          rules: [IS_AUTHENTICATED, ARE_FRIENDS_OR_PUBLIC]
+
+      me:
+        description: TEXT
+        methods:
+          - GET:
+            description: TEXT
+            rules: [IS_AUTHENTICATED, IS_CURRENT_USER]
+
+      "{user_id}":
+        description: TEXT
+        methods:
+          - GET:
+            description: TEXT
+            rules: [IS_AUTHENTICATED, ARE_FRIENDS_OR_PUBLIC]
+
+        comments:
+          description: TEXT
+          methods:
+            - POST:
+              description: TEXT
+              rules: [IS_AUTHENTICATED, ARE_FRIENDS_OR_PUBLIC]
+
+          "{comment_id}":
+            description: TEXT
+            methods:
+              - POST:
+                description: TEXT
+                rules: [IS_AUTHENTICATED, ARE_FRIENDS_OR_PUBLIC, IS_CURRENT_USER]
+              - DELETE:
+                description: TEXT
+                rules: [IS_AUTHENTICATED, ARE_FRIENDS_OR_PUBLIC, IS_CURRENT_USER]
+
+        reactions:
+          description: TEXT
+          methods:
+            - POST:
+              description: TEXT
+              rules: [IS_AUTHENTICATED, ARE_FRIENDS_OR_PUBLIC]
+            - DELETE:
+              description: TEXT
+              rules: [IS_AUTHENTICATED, ARE_FRIENDS_OR_PUBLIC]
+
+    settings:
+        description: TEXT
+        methods:
+          - POST:
+            description: TEXT
+            rules: [IS_AUTHENTICATED, IS_CURRENT_USER]
+          - DELETE:
+            description: TEXT
+            rules: [IS_AUTHENTICATED, IS_CURRENT_USER]

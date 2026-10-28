@@ -44,6 +44,10 @@ migrate: check-compose
 test: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend pytest
 
+test_backend: check-compose # down db-reset up migrate
+#	docker exec -it ft_transcendence-backend-1 python -m app.sample
+	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend pytest -s -k test_backend -vv
+
 db-check: check-compose
 	./database/db-check.sh
 
@@ -55,4 +59,4 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all help up down logs status test migrate db-reset db-check clean fclean re check-compose
+.PHONY: all help up down logs status test test_backend migrate db-reset db-check clean fclean re check-compose
