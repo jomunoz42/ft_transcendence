@@ -5,8 +5,8 @@ import datetime
 import pytest
 
 from app.crud.friendship import are_friends, list_friends
-from app.db.friendships import send_friend_request
 from app.db.models import Friendship, User
+from app.routes.v1.friendships import send_request
 
 
 def make_user(session, email):
@@ -17,8 +17,8 @@ def make_user(session, email):
 
 
 def befriend(session, a, b):
-    send_friend_request(session, a.id, b.id)
-    send_friend_request(session, b.id, a.id)
+    send_request(session, a.id, b.id)
+    send_request(session, b.id, a.id)
 
 
 def pair_with_status(session, requester, addressee, status):
