@@ -4,7 +4,8 @@ import datetime
 
 import pytest
 
-from app.db.friendships import are_friends, list_friends, send_friend_request
+from app.crud.friendship import are_friends, list_friends
+from app.db.friendships import send_friend_request
 from app.db.models import Friendship, User
 
 
