@@ -92,3 +92,43 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
+
+## Models
+![alt text](docs/victor_assets/models.png)
+
+## Flow
+![alt text](docs/victor_assets/flow.png)
+
+## Tree
+![alt text](docs/victor_assets/tree.png)
+
+## Coding practices
+
+#### Routes
+```python
+from fastapi import APIRouter, Depends, HTTPException, responses
+
+router = APIRouter()
+
+@router.get("/")
+def get_all():
+	...
+```
+
+#### HTTP Exceptions
+```python
+# /app/crud/xxx
+class Error<ErrorName>(Exception):
+    pass
+
+...
+except:
+	raise Error<ErrorName>("Error when reading profiles")
+
+# /app/routes/xxx
+from fastapi import HTTPException
+
+...
+except Exception as error:
+	raise HTTPException(status_code=400, detail=str(error))
+```

@@ -1,23 +1,25 @@
+# TODO: Update HTTPExceptions to match the right error status code
+# TODO: Add tests
+# TODO: Update current_user_id with Andre's function
+# TODO: Add current_user to any current_user-only function (eg. updatetop10)
+# TODO: Review class exception
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-
 from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
-
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
-from app.routes.v1.auth import router as auth_router
 from app.db import get_session
 from app.realtime.config import allowed_websocket_origins
 from app.realtime.manager import ConnectionManager
 from app.realtime.presence import DB_TIMEOUT
 
 logger = logging.getLogger(__name__)
-
 
 @asynccontextmanager
 async def lifespan(app):
@@ -27,11 +29,17 @@ async def lifespan(app):
     finally:
         await manager.stop()
 
-
 app = FastAPI(lifespan=lifespan)
 
 ALLOWED_WEBSOCKET_ORIGINS = allowed_websocket_origins()
 
+# ROUTES
+from app.routes.v1.auth import router as auth
+app.include_router(auth, prefix="/api/v1/auth")
+from app.routes.v1.settings import router as settings
+app.include_router(settings, prefix="/api/v1/settings")
+from app.routes.v1.profiles import router as profiles
+app.include_router(profiles, prefix="/api/v1/profiles")
 
 @app.get("/health")
 def health(response: Response, session: Session = Depends(get_session)):
@@ -128,6 +136,3 @@ async def websocket_endpoint(websocket: WebSocket):
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-
-
-app.include_router(auth_router, prefix="/api/v1/auth")

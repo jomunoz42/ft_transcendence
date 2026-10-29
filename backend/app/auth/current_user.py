@@ -17,4 +17,6 @@ def current_user(
     user = user_for_token(session, token)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in")
+    if user.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User was deleted") # TODO: Find the right return
     return user

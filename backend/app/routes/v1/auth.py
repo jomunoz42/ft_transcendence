@@ -9,12 +9,11 @@ from app.auth.current_user import current_user
 from app.auth.login import InvalidCredentials, authenticate
 from app.auth.registration import EmailTaken, InvalidRegistration, register_user
 from app.auth.sessions import SESSION_LIFETIME, end_session, start_session
-from app.db import get_session
+from app.db import get_session, _public
 from app.db.models import User
 from app.realtime.notifications import LogoutNotifier, get_logout_notifier
 
 router = APIRouter()
-
 
 class RegisterBody(BaseModel):
     email: str
@@ -25,12 +24,6 @@ class RegisterBody(BaseModel):
 class LoginBody(BaseModel):
     email: str
     password: str
-
-
-def _public(user: User) -> dict:
-    """The user fields the API may show; never the password hash."""
-    return {"id": user.id, "email": user.email, "display_name": user.profile.display_name}
-
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(body: RegisterBody, session: Session = Depends(get_session)) -> dict:
