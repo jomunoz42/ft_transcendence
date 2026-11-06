@@ -71,11 +71,12 @@ def test_deleting_a_user_deletes_their_friendships(session, leaver):
     assert session.get(Friendship, friendship_id) is None
 
 
-def test_a_status_outside_the_allowed_values_is_rejected(session):
+@pytest.mark.parametrize("status", ["acepted", "blocked"])
+def test_a_status_outside_the_allowed_values_is_rejected(session, status):
     alice = make_user(session, "alice@myplaylist.test")
     bob = make_user(session, "bob@myplaylist.test")
 
-    session.add(Friendship(requester_id=alice.id, addressee_id=bob.id, status="acepted"))
+    session.add(Friendship(requester_id=alice.id, addressee_id=bob.id, status=status))
 
     with pytest.raises(IntegrityError):
         session.flush()

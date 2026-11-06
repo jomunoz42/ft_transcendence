@@ -16,7 +16,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import Base, Friendship, User
+from app.db.models import Base, Block, Friendship, User
 from app.realtime.manager import ConnectionManager
 from realtime_helpers import deliver_to_all
 import app.realtime.manager as realtime_manager
@@ -62,7 +62,7 @@ def presence_database(tmp_path, monkeypatch):
 
     factory = sessionmaker(bind=engine)
     try:
-        Base.metadata.create_all(engine, tables=[User.__table__, Friendship.__table__])
+        Base.metadata.create_all(engine, tables=[User.__table__, Friendship.__table__, Block.__table__])
         with factory.begin() as session:
             session.add_all([
                 User(id=user_id, email=f"user{user_id}@example.test", password_hash="unused")
@@ -75,10 +75,10 @@ def presence_database(tmp_path, monkeypatch):
                     (1, 2, "accepted"), (3, 1, "accepted"),
                     (1, 4, "pending"), (5, 1, "pending"),
                     (1, 6, "declined"), (7, 1, "declined"),
-                    (1, 8, "blocked"), (9, 1, "blocked"),
                     (10, 11, "accepted"),
                 ], start=1)
             ])
+            session.add_all([Block(blocker_id=1, blocked_id=8), Block(blocker_id=9, blocked_id=1)])
         monkeypatch.setattr(presence, "SessionLocal", factory)
         yield factory
     finally:
