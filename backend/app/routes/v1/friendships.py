@@ -1,8 +1,13 @@
 """Friendship routes: the rules for sending, answering, removing and blocking, and the endpoints that call them."""
 
-from sqlalchemy.orm import Session
+from contextlib import contextmanager
 
-from app.crud.friendship import ErrorCreatingFriendship, create_friendship, read_friendship
+from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.auth.current_user import current_user
+from app.crud.friendship import ErrorCreatingFriendship, create_friendship, list_friends, list_pending, read_friendship
+from app.db import get_session
 from app.db.models import Block, Friendship, User
 
 
@@ -111,3 +116,95 @@ def unblock_user(session: Session, me_id: int, them_id: int) -> None:
         raise NotFound
     session.delete(block)
     session.flush()
+
+router = APIRouter()
+
+
+@contextmanager
+def rule_errors(session: Session):
+    """Run a rule inside a with block: NotFound becomes 404, NotAllowed becomes 409, and the session commits only if the block raised nothing."""
+    try:
+        yield
+    except NotFound:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found") from None
+    except NotAllowed as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
+    session.commit()
+
+
+@router.get("")
+def friends(me: User = Depends(current_user), session: Session = Depends(get_session)) -> list[dict]:
+    """My friends as id and display name; 401 without a login."""
+    return [{"id": friend.id, "display_name": friend.profile.display_name} for friend in list_friends(session, me.id)]
+
+@router.get("/requests")
+def requests(me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """Pending requests: incoming sent to me, outgoing sent by me."""
+    incoming, outgoing = list_pending(session, me.id)
+    return {
+        "incoming": [{"id": user.id, "display_name": user.profile.display_name} for user in incoming],
+        "outgoing": [{"id": user.id, "display_name": user.profile.display_name} for user in outgoing],
+    }
+
+@router.post("/request/{them_id}")
+def request(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """Ask them to be friends; 200 with the resulting status, 422 on myself, 404 if there is nothing to ask, 409 if a rule refuses."""
+    if me.id == them_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
+    with rule_errors(session):
+        friendship = send_request(session, me.id, them_id)
+    return {"status": friendship.status}
+
+@router.post("/accept/{them_id}")
+def accept(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """Accept the pending request they sent me; 200 accepted, 422 on myself, 404 if they sent me none, 409 if I blocked them."""
+    if me.id == them_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
+    with rule_errors(session):
+        accept_request(session, me.id, them_id)
+    return {"status": "accepted"}
+
+@router.post("/decline/{them_id}")
+def decline(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """Decline the pending request they sent me; 200 declined, 422 on myself, 404 if they sent me none, 409 if I blocked them."""
+    if me.id == them_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
+    with rule_errors(session):
+        decline_request(session, me.id, them_id)
+    return {"status": "declined"}
+
+@router.post("/cancel/{them_id}")
+def cancel(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """Withdraw the pending request I sent them; 200 cancelled, 422 on myself, 404 if I sent them none, 409 if I blocked them."""
+    if me.id == them_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
+    with rule_errors(session):
+        cancel_request(session, me.id, them_id)
+    return {"status": "cancelled"}
+
+@router.delete("/{them_id}")
+def remove(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """End our friendship from either side; 200 removed, 422 on myself, 404 if we are not friends, 409 if I blocked them."""
+    if me.id == them_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
+    with rule_errors(session):
+        remove_friend(session, me.id, them_id)
+    return {"status": "removed"}
+
+@router.post("/block/{them_id}")
+def block(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """Block them and drop any friendship between us, again is a no-op; 200 blocked, 422 on myself, 404 if they do not exist."""
+    if me.id == them_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
+    with rule_errors(session):
+        block_user(session, me.id, them_id)
+    return {"status": "blocked"}
+
+@router.post("/unblock/{them_id}")
+def unblock(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    """Lift my block on them; 200 unblocked, 422 on myself, 404 if I have not blocked them."""
+    if me.id == them_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
+    with rule_errors(session):
+        unblock_user(session, me.id, them_id)
+    return {"status": "unblocked"}
