@@ -1,4 +1,4 @@
-from app.db.models import User, Profile, Friendship, Song, Top10Entry
+from app.db.models import User, Profile, Friendship, Block, Song, Top10Entry
 from app.db import SessionLocal
 from app.auth.passwords import hash_password
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 			Friendship(requester_id=USERS[0].id, addressee_id=USERS[4].id, status="accepted"),
 			Friendship(requester_id=USERS[3].id, addressee_id=USERS[0].id, status="pending"),
 			Friendship(requester_id=USERS[0].id, addressee_id=USERS[5].id, status="declined"),
-			Friendship(requester_id=USERS[0].id, addressee_id=USERS[6].id, status="blocked"),
+			Block(blocker_id=USERS[0].id, blocked_id=USERS[6].id),
 			Friendship(requester_id=USERS[1].id, addressee_id=USERS[7].id, status="accepted"),
 		]
 
