@@ -1,8 +1,4 @@
-"""Tests for password hashing (auth ticket 01).
-
-Pure function tests: no database. They only call the two public functions,
-hash_password and verify_password, the way the rest of auth will.
-"""
+"""Password hashing through hash_password and verify_password; no database."""
 
 from app.auth.passwords import hash_password, verify_password
 

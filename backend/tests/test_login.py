@@ -1,4 +1,4 @@
-"""Tests for logging in with lockout (auth issue #13)."""
+"""Logging in, with lockout after repeated failures."""
 
 import datetime
 

@@ -1,7 +1,7 @@
-"""Tests for the current_user dependency (auth issue #15).
+"""The current_user dependency.
 
-The seam is a route that depends on current_user, so each test builds a tiny app
-with one protected route instead of going through the real routers.
+Each test builds a tiny app with one protected route instead of going through
+the real routers.
 """
 
 import pytest

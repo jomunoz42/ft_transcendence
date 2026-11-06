@@ -1,7 +1,4 @@
-"""Ticket 02: /health must report whether the backend can actually reach the database.
-
-The seam under test is the HTTP endpoint, not the session module behind it.
-"""
+"""/health reports whether the backend can reach the database, tested through the HTTP endpoint."""
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

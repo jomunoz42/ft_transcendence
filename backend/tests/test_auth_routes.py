@@ -1,7 +1,4 @@
-"""Tests for the auth HTTP routes (issue #15): register, login, logout, me.
-
-The seam is the HTTP API under /api/v1/auth, called through the real app.
-"""
+"""The auth HTTP routes under /api/v1/auth (register, login, logout, me), called through the real app."""
 
 REGISTER = "/api/v1/auth/register"
 LOGIN = "/api/v1/auth/login"

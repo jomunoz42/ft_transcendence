@@ -1,4 +1,4 @@
-"""Ticket 04: songs and Top 10 entries, verified against real Postgres."""
+"""Songs and Top 10 entries, verified against real Postgres."""
 
 import pytest
 from sqlalchemy import delete, select
