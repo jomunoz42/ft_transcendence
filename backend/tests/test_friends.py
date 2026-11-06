@@ -5,7 +5,7 @@ import datetime
 import pytest
 
 from app.crud.friendship import are_friends, list_friends
-from app.db.models import Friendship, User
+from app.db.models import Block, Friendship, User
 from app.routes.v1.friendships import send_request
 
 
@@ -48,7 +48,7 @@ def test_users_who_never_interacted_are_not_friends(session):
     assert are_friends(session, alice.id, bob.id) is False
 
 
-@pytest.mark.parametrize("status", ["pending", "declined", "blocked"])
+@pytest.mark.parametrize("status", ["pending", "declined"])
 def test_a_pair_that_is_not_accepted_are_not_friends(session, status):
     alice = make_user(session, "alice@myplaylist.test")
     bob = make_user(session, "bob@myplaylist.test")
@@ -85,7 +85,7 @@ def test_pending_declined_and_blocked_pairs_are_left_out(session):
     befriend(session, alice, bob)
     pair_with_status(session, alice, carol, "pending")
     pair_with_status(session, dave, alice, "declined")
-    pair_with_status(session, alice, erin, "blocked")
+    session.add(Block(blocker_id=alice.id, blocked_id=erin.id))
 
     assert ids(list_friends(session, alice.id)) == [bob.id]
 

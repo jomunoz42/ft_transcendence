@@ -18,7 +18,7 @@ import app.realtime.presence as presence
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import end_session, start_session
 from app.db import engine
-from app.db.models import Base, Friendship, User, UserSession
+from app.db.models import Base, Block, Friendship, User, UserSession
 from app.main import app, manager
 from test_websocket import ALLOWED_ORIGIN, ASGIWebSocketSession
 
@@ -49,7 +49,7 @@ def postgres_sessions(monkeypatch):
             session.add_all([
                 Friendship(requester_id=ids[1], addressee_id=ids[0], status="accepted"),
                 Friendship(requester_id=ids[0], addressee_id=ids[2], status="pending"),
-                Friendship(requester_id=ids[3], addressee_id=ids[0], status="blocked"),
+                Block(blocker_id=ids[3], blocked_id=ids[0]),
             ])
         yield factory, tokens, ids
     finally:
