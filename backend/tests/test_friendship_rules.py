@@ -346,3 +346,36 @@ def test_unblocking_leaves_the_other_users_block_in_place(session):
     assert session.get(Block, (bob.id, alice.id)) is not None
     with pytest.raises(NotFound):
         send_request(session, alice.id, bob.id)
+
+
+# deleted accounts
+
+def asked(requester, addressee, status="pending"):
+    return lambda session: session.add(Friendship(requester_id=requester.id, addressee_id=addressee.id, status=status))
+
+
+DELETED_BOB_CASES = {
+    "send": (send_request, lambda alice, bob: None),
+    "accept": (accept_request, lambda alice, bob: asked(bob, alice)),
+    "decline": (decline_request, lambda alice, bob: asked(bob, alice)),
+    "cancel": (cancel_request, lambda alice, bob: asked(alice, bob)),
+    "remove": (remove_friend, lambda alice, bob: asked(alice, bob, "accepted")),
+    "unblock": (unblock_user, lambda alice, bob: lambda session: session.add(Block(blocker_id=alice.id, blocked_id=bob.id))),
+}
+
+
+@pytest.mark.parametrize("action", DELETED_BOB_CASES)
+def test_every_action_on_a_deleted_account_is_not_found_and_changes_nothing(session, action):
+    rule, existing_row = DELETED_BOB_CASES[action]
+    alice = make_user(session, "alice@myplaylist.test")
+    bob = make_user(session, "bob@myplaylist.test")
+    add_row = existing_row(alice, bob)
+    if add_row:
+        add_row(session)
+    bob.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    session.flush()
+    before = (friendship_rows(session), block_rows(session), session.scalar(select(Friendship.status)))
+
+    with pytest.raises(NotFound):
+        rule(session, alice.id, bob.id)
+    assert (friendship_rows(session), block_rows(session), session.scalar(select(Friendship.status))) == before

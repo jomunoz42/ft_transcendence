@@ -19,6 +19,13 @@ class NotAllowed(Exception):
     """The target exists, but a friendship rule refuses this action."""
 
 
+def check_exists(session: Session, them_id: int) -> None:
+    """Raise NotFound if they never existed or deleted their account; a deleted account is gone for everyone."""
+    them = session.get(User, them_id)
+    if them is None or them.deleted_at is not None:
+        raise NotFound
+
+
 def check_not_blocked(session: Session, me_id: int, them_id: int) -> None:
     """Raise NotAllowed if I blocked them, NotFound if they blocked me; return if there is no block."""
     if session.get(Block, (me_id, them_id)) is not None:
@@ -29,6 +36,7 @@ def check_not_blocked(session: Session, me_id: int, them_id: int) -> None:
 
 def send_request(session: Session, requester_id: int, addressee_id: int) -> Friendship:
     """Ask another user to be friends; the pair's history decides the result. Never commits."""
+    check_exists(session, addressee_id)
     check_not_blocked(session, requester_id, addressee_id)
 
     existing = read_friendship(session, requester_id, addressee_id)
@@ -57,6 +65,7 @@ def send_request(session: Session, requester_id: int, addressee_id: int) -> Frie
 
 def accept_request(session: Session, me_id: int, them_id: int) -> Friendship:
     """Accept the pending request they sent me; NotFound if there is none. Never commits."""
+    check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
     row = read_friendship(session, me_id, them_id)
     if row is None or row.status != "pending" or row.requester_id != them_id:
@@ -67,6 +76,7 @@ def accept_request(session: Session, me_id: int, them_id: int) -> Friendship:
 
 def decline_request(session: Session, me_id: int, them_id: int) -> None:
     """Decline the pending request they sent me, keeping the row so only I can reopen it; NotFound if there is none. Never commits."""
+    check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
     row = read_friendship(session, me_id, them_id)
     if row is None or row.status != "pending" or row.requester_id != them_id:
@@ -76,6 +86,7 @@ def decline_request(session: Session, me_id: int, them_id: int) -> None:
 
 def cancel_request(session: Session, me_id: int, them_id: int) -> None:
     """Withdraw the pending request I sent, deleting the row so either of us can ask again; NotFound if there is none. Never commits."""
+    check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
     row = read_friendship(session, me_id, them_id)
     if row is None or row.status != "pending" or row.requester_id != me_id:
@@ -85,6 +96,7 @@ def cancel_request(session: Session, me_id: int, them_id: int) -> None:
 
 def remove_friend(session: Session, me_id: int, them_id: int) -> None:
     """End our friendship from either side, deleting the row so either of us can ask again; NotFound if we are not friends. Never commits."""
+    check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
     row = read_friendship(session, me_id, them_id)
     if row is None or row.status != "accepted":
@@ -97,9 +109,7 @@ def block_user(session: Session, me_id: int, them_id: int) -> None:
     if me_id == them_id:
         raise NotAllowed
 
-    target = session.get(User, them_id)
-    if target is None or target.deleted_at is not None:
-        raise NotFound
+    check_exists(session, them_id)
     if session.get(Block, (me_id, them_id)) is not None:
         return
 
@@ -110,7 +120,8 @@ def block_user(session: Session, me_id: int, them_id: int) -> None:
     session.flush()
 
 def unblock_user(session: Session, me_id: int, them_id: int) -> None:
-    """Lift my block on them; we are strangers again. NotFound if I have not blocked them. Never commits."""
+    """Lift my block on them; we are strangers again. NotFound if I have not blocked them or they are gone. Never commits."""
+    check_exists(session, them_id)
     block = session.get(Block, (me_id, them_id))
     if block is None:
         raise NotFound
