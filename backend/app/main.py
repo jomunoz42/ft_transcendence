@@ -40,6 +40,8 @@ from app.routes.v1.settings import router as settings
 app.include_router(settings, prefix="/api/v1/settings")
 from app.routes.v1.profiles import router as profiles
 app.include_router(profiles, prefix="/api/v1/profiles")
+from app.routes.v1.friendships import router as friendships
+app.include_router(friendships, prefix="/api/v1/friends")
 
 @app.get("/health")
 def health(response: Response, session: Session = Depends(get_session)):

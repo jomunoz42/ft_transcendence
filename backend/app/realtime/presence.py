@@ -4,7 +4,7 @@ from enum import Enum, auto
 
 from sqlalchemy.exc import DBAPIError, OperationalError, TimeoutError as PoolTimeout
 from fastapi import WebSocket
-from app.db.friendships import list_friends
+from app.crud.friendship import list_friends
 from app.db import SessionLocal
 from starlette.concurrency import run_in_threadpool
 

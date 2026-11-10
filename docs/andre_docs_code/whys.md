@@ -9,6 +9,7 @@ that is not here? Ask André, and the answer gets added.
 - [Why one migration file per change?](#why-one-migration-file-per-change)
 - [Why does DB code live in `backend/app/db/` and not `database/`?](#why-does-db-code-live-in-backendappdb-and-not-database)
 - [Why do friend requests work this way?](#why-do-friend-requests-work-this-way)
+- [Why are the rules in the route module and not in `crud/`?](#why-are-the-rules-in-the-route-module-and-not-in-crud)
 - [Why does `list_friends` leave out deleted accounts, but `are_friends` does not?](#why-does-list_friends-leave-out-deleted-accounts-but-are_friends-does-not)
 - [Why bigint ids, and not unsigned or UUID?](#why-bigint-ids-and-not-unsigned-or-uuid)
 - [Why are rules enforced by Postgres and not only in Python?](#why-are-rules-enforced-by-postgres-and-not-only-in-python)
@@ -72,8 +73,24 @@ The rules are in [`database.md`](database.md#friend-requests). The reasons:
   every "are A and B friends?" query would have to check both directions.
 - **Only the person who said no can reopen.** That person can change their mind,
   but nobody can spam requests after being declined. Reopening goes back to
-  `pending`, so the other person still has to say yes.
-- **Blocked refuses both sides.** Unblocking will be its own action.
+  `pending`, so the other person still has to say yes. That is why decline
+  keeps the row.
+- **Cancel and remove delete the row.** No feature needs the history of a past
+  friendship, so afterwards either person can simply ask again.
+- **Blocks have their own table, one row per blocker.** A block is one-way:
+  only the blocker can lift it. If Alice and Bob block each other and Alice
+  unblocks, Bob's block must still protect him, so each block is its own row.
+- **The blocked user gets 404, not 403.** The frontend only knows what the
+  backend sends, so any "you are blocked" answer would tell Bob. A 404 looks
+  exactly like a user he cannot reach.
+
+### Why are the rules in the route module and not in `crud/`?
+
+`crud/friendship.py` only runs queries and never decides what is allowed. The
+decisions live in plain functions in `routes/v1/friendships.py`, next to the
+endpoints that call them, following the backend's layout. The endpoints stay
+thin: they turn `NotFound` into 404 and `NotAllowed` into 409, and commit. The
+rules can be tested without HTTP.
 
 ### Why does `list_friends` leave out deleted accounts, but `are_friends` does not?
 
@@ -150,7 +167,7 @@ without breaking the rest of the caller's transaction.
 
 The `session.flush()` just before the savepoint writes the caller's own pending
 changes first. Without it, a broken change of theirs would fail inside the
-savepoint and be reported as `EmailTaken`. `send_friend_request` does the same.
+savepoint and be reported as `EmailTaken`. `create_friendship` does the same.
 NUL characters are rejected up front because Postgres text cannot store them;
 they would otherwise crash as a 500 error.
 

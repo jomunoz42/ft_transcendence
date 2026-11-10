@@ -9,7 +9,7 @@ from app.crud.profile import read_profile, read_profiles, update_profile, Profil
 from app.crud.user import read_user
 from app.db import _me_profile
 from app.db.models import User
-from app.db.friendships import are_friends
+from app.crud.friendship import are_friends
 from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
 from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
 

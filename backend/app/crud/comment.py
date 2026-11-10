@@ -1,5 +1,5 @@
 from app.db.models import Top10Comment, User
-from app.db.friendships import are_friends
+from app.crud.friendship import are_friends
 from fastapi import HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session

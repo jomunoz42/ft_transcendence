@@ -1,7 +1,7 @@
 # TODO: standardize all files
 # TODO: Force types in all functions
 from app.db.models import User, Top10Reaction
-from app.db.friendships import are_friends
+from app.crud.friendship import are_friends
 from fastapi import HTTPException, status
 from pydantic import BaseModel
 from typing import Literal

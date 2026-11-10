@@ -15,7 +15,7 @@ import app.realtime.manager as realtime_manager
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import end_session, start_session
 from app.db import get_session
-from app.db.friendships import send_friend_request
+from app.routes.v1.friendships import send_request
 from app.db.models import User, UserSession
 from app.main import app, manager
 from test_websocket_postgres import client, postgres_sessions
@@ -198,7 +198,7 @@ async def test_friend_acceptance_refreshes_both_users_and_tabs_only_after_commit
         addressee_tab = await stack.enter_async_context(connected(tokens[2]))
         outsider = await stack.enter_async_context(connected(tokens[3]))
         with factory() as session:
-            accepted = send_friend_request(session, ids[2], ids[0])
+            accepted = send_request(session, ids[2], ids[0])
             assert accepted.status == "accepted"
             # Force a reconciliation while the acceptance is uncommitted.
             for user_id in (ids[0], ids[2], ids[3]):
@@ -226,7 +226,7 @@ async def test_acceptance_with_offline_friend_and_later_connect(realtime):
     factory, tokens, ids = realtime
     async with connected(tokens[0]) as requester:
         with factory.begin() as session:
-            send_friend_request(session, ids[2], ids[0])
+            send_request(session, ids[2], ids[0])
         # The refreshed snapshot deliberately contains no offline IDs.
         assert await requester.receive_json() == snapshot()
         async with connected(tokens[2], [ids[0]]):
@@ -239,7 +239,7 @@ async def test_rolled_back_acceptance_does_not_refresh_presence(realtime):
     async with connected(tokens[0]) as requester:
         async with connected(tokens[2]) as addressee:
             with factory() as session:
-                send_friend_request(session, ids[2], ids[0])
+                send_request(session, ids[2], ids[0])
                 session.rollback()
             for user_id in (ids[0], ids[2]):
                 for socket in manager.active_connections[user_id].copy():
@@ -434,7 +434,7 @@ async def test_friendship_refresh_is_independent_of_session_polling(realtime, mo
     async with connected(tokens[0]) as requester:
         async with connected(tokens[2]) as addressee:
             with factory.begin() as session:
-                send_friend_request(session, ids[2], ids[0])
+                send_request(session, ids[2], ids[0])
             assert await requester.receive_json() == snapshot([ids[2]])
             assert await addressee.receive_json() == snapshot([ids[0]])
             revalidate.assert_not_awaited()
