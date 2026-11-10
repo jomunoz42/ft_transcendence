@@ -3,7 +3,7 @@
 import datetime
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select
 
 from app.db.models import Block, Friendship, User
 from app.routes.v1.friendships import (
@@ -265,6 +265,26 @@ def test_blocking_twice_changes_nothing(session):
     alice = make_user(session, "alice@myplaylist.test")
     bob = make_user(session, "bob@myplaylist.test")
     block_user(session, alice.id, bob.id)
+
+    block_user(session, alice.id, bob.id)
+
+    assert block_rows(session) == 1
+
+
+def test_a_block_written_between_the_check_and_the_insert_changes_nothing(session, monkeypatch):
+    alice = make_user(session, "alice@myplaylist.test")
+    bob = make_user(session, "bob@myplaylist.test")
+    session.execute(insert(Block).values(blocker_id=alice.id, blocked_id=bob.id))
+    real_get = session.get
+    missed = []
+
+    def get_missing_the_first_block(model, key, **kw):
+        if model is Block and not missed:
+            missed.append(key)
+            return None
+        return real_get(model, key, **kw)
+
+    monkeypatch.setattr(session, "get", get_missing_the_first_block)
 
     block_user(session, alice.id, bob.id)
 

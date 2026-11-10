@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -116,8 +117,13 @@ def block_user(session: Session, me_id: int, them_id: int) -> None:
     row = read_friendship(session, me_id, them_id)
     if row is not None:
         session.delete(row)
-    session.add(Block(blocker_id=me_id, blocked_id=them_id))
     session.flush()
+    try:
+        with session.begin_nested():
+            session.add(Block(blocker_id=me_id, blocked_id=them_id))
+    except IntegrityError:
+        if session.get(Block, (me_id, them_id)) is None:
+            raise
 
 def unblock_user(session: Session, me_id: int, them_id: int) -> None:
     """Lift my block on them; we are strangers again. NotFound if I have not blocked them or they are gone. Never commits."""
