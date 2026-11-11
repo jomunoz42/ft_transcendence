@@ -1,6 +1,7 @@
 from app.db.models import User, Profile, Friendship, Song, Top10Entry
 from app.db import SessionLocal
 from app.auth.passwords import hash_password
+from app.external.spotify.Spotify import Spotify
 
 if __name__ == "__main__":
 	with SessionLocal() as session:
@@ -15,8 +16,12 @@ if __name__ == "__main__":
 			User(email='info@gmail.com', password_hash=hash_password('123456')),
 		]
 
-		session.add_all(USERS)
-		session.flush()  # Inserts users and populates their IDs before committing.
+		try:
+			session.add_all(USERS)
+			session.flush()
+			session.commit()
+		except:
+			session.rollback()
 
 		PROFILES = [
 			Profile(
@@ -69,8 +74,13 @@ if __name__ == "__main__":
 			),
 		]
 
-		session.add_all(PROFILES)
-		session.flush()
+		try:
+			session.add_all(PROFILES)
+			session.flush()
+			session.commit()
+		except:
+			session.rollback()
+
 
 		FRIENDSHIPS = [
 			Friendship(requester_id=USERS[0].id, addressee_id=USERS[1].id, status="accepted"),
@@ -82,22 +92,23 @@ if __name__ == "__main__":
 			Friendship(requester_id=USERS[1].id, addressee_id=USERS[7].id, status="accepted"),
 		]
 
-		session.add_all(FRIENDSHIPS)
-		session.flush()
+		try:
+			session.add_all(FRIENDSHIPS)
+			session.flush()
+			session.commit()
+		except:
+			session.rollback()
 
-		SONGS = [
-			Song(
-				provider="Unsure",
-				provider_id="1",
-				title="Envie",
-				artist="Jonhy",
-			)
-		]
+		Spotify = Spotify()
+		SONGS = Spotify.search(q="tupac")
 
-		session.add_all(SONGS)
-		session.flush()
+		try:
+			session.add_all(SONGS)
+			session.flush()
+			session.commit()
+		except:
+			session.rollback()
 
-		print(SONGS[0].id)
 		TOP10S = [
 			Top10Entry(
 				user_id=USERS[1].id,
@@ -106,7 +117,11 @@ if __name__ == "__main__":
 			)
 		]
 
-		session.add_all(TOP10S)
-		session.flush()
+		try:
+			session.add_all(TOP10S)
+			session.flush()
+			session.commit()
+		except:
+			session.rollback()
 
 		session.commit()

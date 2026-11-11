@@ -110,7 +110,7 @@ from fastapi import APIRouter, Depends, HTTPException, responses
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 def get_all():
 	...
 ```

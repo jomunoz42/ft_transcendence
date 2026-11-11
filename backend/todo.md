@@ -1,59 +1,69 @@
-Phase 1 — Foundation (do first)
+# Backend To-Do
+
+## Phase 1 — Foundation
 
 1. Set up the API structure/router organization
-- Create backend/app/routers/ with separate files: auth.py, users.py, profiles.py, top10.py, friends.py, songs.py, comments.py, reactions.py
-- Register them in main.py with app.include_router()
-- Decide on URL conventions (e.g., /api/v1/...)
+   - [x] Create route files (auth.py, profiles.py, friendships.py, settings.py in `app/routes/v1/`)
+   - [x] Register them in main.py with `app.include_router()`
+   - [x] URL conventions (`/api/v1/...`)
 2. Define Pydantic schemas
-- Create backend/app/schemas/ with request/response models for each domain
-- These are separate from SQLAlchemy models — they define the API contract
-3. Implement auth endpoints (coordinate with Andre)
-- POST /api/v1/auth/register — email + password, hash with Argon2, create user + profile
-- POST /api/v1/auth/login — verify credentials, return JWT
-- POST /api/v1/auth/logout — invalidate token (if using blocklist) or just client-side
-- JWT middleware/dependency that protects all other routes
-- Add python-jose[cryptography] and argon2-cffi to requirements.txt
+   - [x] Request/response models for each domain (inline in each module)
+3. Implement auth endpoints
+   - [x] POST /api/v1/auth/register — email + password, hash with Argon2, create user + profile
+   - [x] POST /api/v1/auth/login — verify credentials, return session cookie
+   - [x] POST /api/v1/auth/logout — invalidate session
+   - [x] Auth dependency (`current_user`) that protects all other routes
+   - [x] argon2-cffi in requirements.txt
 4. Implement core CRUD routes
-- GET/PUT /api/v1/users/me/profile — view/edit own profile
-- GET /api/v1/users/{id}/profile — view someone's profile
-- GET/POST/PUT/DELETE /api/v1/users/me/top10 — manage own Top 10
-- GET /api/v1/users/{id}/top10 — view someone's Top 10 (respecting is_top10_public / friendship)
+   - [x] GET/POST /api/v1/profiles/me — view/edit own profile
+   - [x] GET /api/v1/profiles/{user_id} — view someone's profile
+   - [x] Manage own Top 10 (via profile update endpoint)
+   - [x] View someone's Top 10 (via profile endpoint, respecting visibility/friendship)
 
-Phase 2 — Social features
+## Phase 2 — Social features
 
-5. Friend system API (Andre built the DB logic, you expose it)
-- POST /api/v1/friends/request/{user_id} — send request
-- POST /api/v1/friends/accept/{user_id} — accept
-- POST /api/v1/friends/decline/{user_id} — decline
-- DELETE /api/v1/friends/{user_id} — unfriend
-- GET /api/v1/friends — list friends
-- GET /api/v1/friends/requests — pending requests
+5. Friend system API
+   - [x] POST /api/v1/friends/request/{user_id} — send request
+   - [x] POST /api/v1/friends/accept/{user_id} — accept
+   - [x] POST /api/v1/friends/decline/{user_id} — decline
+   - [x] POST /api/v1/friends/cancel/{user_id} — cancel own request
+   - [x] DELETE /api/v1/friends/{user_id} — unfriend
+   - [x] GET /api/v1/friends — list friends
+   - [x] GET /api/v1/friends/requests — pending requests
+   - [x] POST /api/v1/friends/block/{user_id} — block
+   - [x] POST /api/v1/friends/unblock/{user_id} — unblock
 6. Comments & reactions API
-- POST/GET /api/v1/users/{id}/top10/comments
-- POST/DELETE /api/v1/users/{id}/top10/reaction
+   - [x] POST/GET /api/v1/profiles/{user_id}/comments
+   - [x] POST/DELETE /api/v1/profiles/{user_id}/comments/{comment_id}
+   - [x] POST/GET/DELETE /api/v1/profiles/{user_id}/reactions
 7. Song search API
-- GET /api/v1/songs/search?q=... — search by title/artist
-- Integration with external music API (Spotify/Deezer) or manual entry
+   - [x] GET /api/v1/songs/search?q=... — search by title/artist
+   - [x] Integration with external music API (Spotify/Deezer)
+   - [ ] Add song manually
 
-Phase 3 — Advanced features
+## Phase 3 — Advanced features
 
 8. Advanced search (module: 1pt)
-- GET /api/v1/search/users?q=...&sort=...&page=...
-- GET /api/v1/search/songs?q=...&filter=...&page=...
-- Implement pagination, sorting, filtering across endpoints
+   - [ ] GET /api/v1/search/users?q=...&sort=...&page=...
+   - [ ] GET /api/v1/search/songs?q=...&filter=...&page=...
+   - [ ] Implement pagination, sorting, filtering across endpoints
 9. Notifications API (module: 1pt)
-- GET /api/v1/notifications — list notifications
-- PUT /api/v1/notifications/{id}/read — mark as read
-- Backend creates notifications on: friend request, comment, reaction, etc.
+   - [ ] GET /api/v1/notifications — list notifications
+   - [ ] PUT /api/v1/notifications/{id}/read — mark as read
+   - [ ] Backend creates notifications on: friend request, comment, reaction, etc.
 10. GDPR compliance (module: 1pt)
-- GET /api/v1/users/me/data-export — export all user data as JSON
-- DELETE /api/v1/users/me — soft-delete account (already designed in schema)
-11. Input validation everywhere — both Pydantic (request) and DB constraints (already there)
-12. HTTPS setup — coordinate with Person 4 (likely nginx reverse proxy with self-signed cert)
+    - [ ] GET /api/v1/users/me/data-export — export all user data as JSON
+    - [x] DELETE /api/v1/settings — soft-delete account
+11. [x] Input validation everywhere — both Pydantic (request) and DB constraints
+12. [ ] HTTPS setup — coordinate with Person 4 (likely nginx reverse proxy with self-signed cert)
 
-Phase 4 — Polish
+## Phase 4 — Polish
 
-13. Error handling middleware — consistent error response format across all routes
-14. Rate limiting — if claiming the public API module
-15. Metrics endpoint — /metrics for Prometheus scraping (coordinate with Person 4)
-16. API documentation — FastAPI generates this automatically, but review and clean up
+13. [ ] Error handling middleware — consistent error response format across all routes
+14. [ ] Rate limiting — if claiming the public API module
+15. [ ] Metrics endpoint — /metrics for Prometheus scraping (coordinate with Person 4)
+16. [x] API documentation — FastAPI generates this automatically at /docs and /redoc
+
+
+## Draft
+- No genres etc from classic track search in Spotify

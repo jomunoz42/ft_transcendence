@@ -8,7 +8,7 @@ from app.auth.current_user import current_user
 from app.crud.profile import read_profile, read_profiles, update_profile, ProfileUpdate
 from app.crud.user import read_user
 from app.db import _me_profile
-from app.db.models import User
+from app.db.models import User, Top10Entry
 from app.crud.friendship import are_friends
 from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
 from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
@@ -19,8 +19,12 @@ router = APIRouter()
 # /profiles
 ################################################
 
+# @router.get("/testssss")
+# def get_tops(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+# 	top10s = session.query(Top10Entry).all()
+# 	return top10s
+
 @router.get("")
-@router.get("/")
 def get_profiles(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	try:
 		profiles = read_profiles(session)

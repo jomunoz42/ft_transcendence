@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi.testclient import TestClient
 from fastapi import Depends
 from app.main import app
-from app.db.models import Song
+from app.db.models import Song, Top10Entry
 from app.db import SessionLocal
 
 client = TestClient(app, base_url="https://testserver")
@@ -118,6 +118,18 @@ tests = [
 		Req(uri='/api/v1/profiles/me', method='POST', body={"top10": [{"title": "Hello", "artist": "bonjour", "rank": 1}]}),
 		Exp(status_code=400),
 	),
+	(
+		Req(uri='/api/v1/songs', method='GET'),
+		Exp(status_code=200),
+	),
+	(
+		Req(uri='/api/v1/songs/search', method='GET'),
+		Exp(status_code=200),
+	),
+	(
+		Req(uri='/api/v1/songs/search?q=tupac', method='GET'),
+		Exp(status_code=200),
+	),
 ]
 
 def _do_request(session: TestClient, req: Req, exp: Exp):
@@ -175,13 +187,8 @@ def _clean():
 	if (len(comments) > 0 or len(reactions) > 0):
 		return 0
 
-	res = client.post("/api/v1/profiles/me", json={"top10": []})
-	res = client.get("/api/v1/profiles/me")
-	top10s = res.json().get("top10_entries")
-	if (len(top10s) > 0):
-		return 0
-
 	with SessionLocal() as session:
+		session.query(Top10Entry).delete()
 		session.query(Song).delete()
 		session.commit()
 

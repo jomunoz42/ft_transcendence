@@ -4,6 +4,7 @@ sqlalchemy
 alembic
 psycopg2-binary
 argon2-cffi
+requests
 
 # test dependencies
 pytest

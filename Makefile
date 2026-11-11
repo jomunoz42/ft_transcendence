@@ -41,11 +41,25 @@ db-reset: check-compose
 migrate: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend alembic upgrade head
 
+login:
+	@curl -i localhost:8000/api/v1/auth/login \
+		-H "Content-type: application/json" \
+		-c .cookies -b .cookies \
+		-d '{\
+				"email": "victor@edwed.com",\
+				"password": "wefgvwervrevrevver"\
+			}'
+	@echo "\
+		\n\nUpdate the returned cookies inside your browser \n\
+		\rF12 > Application > Cookies > Add the Name and Value"
+
+sample: #down db-reset up migrate
+	@docker exec ft_transcendence-backend-1 python -m app.sample
+
 test: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend pytest
 
-test_backend: check-compose # down db-reset up migrate
-#	docker exec -it ft_transcendence-backend-1 python -m app.sample
+test_backend: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend pytest -s -k test_backend -vv
 
 db-check: check-compose
@@ -59,4 +73,4 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all help up down logs status test test_backend migrate db-reset db-check clean fclean re check-compose
+.PHONY: all help up down logs status test test_backend migrate db-reset db-check clean fclean re check-compose login sample
