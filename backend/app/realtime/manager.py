@@ -6,7 +6,7 @@ import logging
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
-
+from app.monitoring.metrics import WS_ACTIVE_CONNECTIONS, WS_CONNECTIONS_TOTAL, WS_DISCONNECTIONS_TOTAL
 from app.auth.websocket import authenticate_websocket
 
 from app.realtime.presence import (
@@ -205,6 +205,8 @@ class ConnectionManager:
             self.active_connections[user_id] = set()
 
         self.active_connections[user_id].add(websocket)
+        WS_ACTIVE_CONNECTIONS.inc()
+        WS_CONNECTIONS_TOTAL.inc()
         self.initializing.add(websocket)
         self.send_locks[websocket] = asyncio.Lock()
         self.disconnected[websocket] = asyncio.Event()
@@ -239,6 +241,8 @@ class ConnectionManager:
             return False
 
         connections.discard(websocket)
+        WS_ACTIVE_CONNECTIONS.dec()
+        WS_DISCONNECTIONS_TOTAL.inc()
         self.discard_initialization(websocket)
         self.session_tokens.pop(websocket, None)
         self.friend_ids.pop(websocket, None)
