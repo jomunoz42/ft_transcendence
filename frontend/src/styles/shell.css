@@ -1,0 +1,45 @@
+.app-shell {
+  min-height: 100vh;
+}
+
+.main-column {
+  min-height: 100vh;
+  max-width: 1600px;
+  margin-left: 240px;
+  padding: 0 48px;
+}
+
+.page-content {
+  min-height: calc(100vh - 162px);
+  padding: 28px 0 45px;
+}
+
+@media (min-width: 761px) {
+  .main-column {
+    margin-left: 72px;
+    transition: margin-left 0.22s ease;
+  }
+
+  .app-shell:has(.sidebar:hover) .main-column {
+    margin-left: 240px;
+  }
+}
+
+@media (max-width: 760px) {
+  .main-column {
+    margin: 0;
+    padding: 0 18px 78px;
+  }
+
+  .page-content {
+    min-height: calc(100vh - 145px);
+    padding-top: 18px;
+  }
+}
+
+@media (max-width: 430px) {
+  .main-column {
+    padding-right: 13px;
+    padding-left: 13px;
+  }
+}

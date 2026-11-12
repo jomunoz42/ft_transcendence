@@ -1,0 +1,134 @@
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  color: #eceee8;
+  background: #171a17;
+
+  --ink: #eceee8;
+  --muted: #a5aa9f;
+  --line: #343a33;
+  --paper: #202520;
+  --green: #c7a5ee;
+  --soft-green: #3c2c4e;
+}
+
+:root[data-theme='dark'] body {
+  color: #eceee8;
+  background: #171a17;
+}
+
+:root[data-theme='dark'] .sidebar,
+:root[data-theme='dark'] .main-column,
+:root[data-theme='dark'] .auth-layout {
+  background: #1b201b;
+}
+
+:root[data-theme='dark'] .sidebar {
+  border-color: #343a33;
+}
+
+:root[data-theme='dark'] .nav-link {
+  color: #a5aa9f;
+}
+
+:root[data-theme='dark'] .nav-link.active,
+:root[data-theme='dark'] .sidebar:hover .nav-link.active {
+  color: #ddc4ff;
+  background: #3c2c4e;
+}
+
+:root[data-theme='dark'] .nav-link:hover {
+  color: #d0e1c6;
+  background: #303b2e;
+}
+
+:root[data-theme='dark'] .nav-icon img {
+  filter: brightness(0) invert(0.78);
+}
+
+:root[data-theme='dark'] .mini-profile,
+:root[data-theme='dark'] .topbar,
+:root[data-theme='dark'] .song-row,
+:root[data-theme='dark'] .add-song,
+:root[data-theme='dark'] .profile-stats,
+:root[data-theme='dark'] .friend-row,
+:root[data-theme='dark'] .setting-toggle {
+  border-color: #343a33;
+}
+
+:root[data-theme='dark'] .profile-card p,
+:root[data-theme='dark'] .profile-hero p,
+:root[data-theme='dark'] .song-info span,
+:root[data-theme='dark'] .song-rank,
+:root[data-theme='dark'] .duration,
+:root[data-theme='dark'] .auth-switch {
+  color: #a5aa9f;
+}
+
+:root[data-theme='dark'] .button-dark {
+  color: #241b2d;
+  background: #c7a5ee;
+}
+
+:root[data-theme='dark'] .button-dark:hover {
+  color: #241b2d;
+  background: #ddc4ff;
+}
+
+:root[data-theme='dark'] .button-outline {
+  color: #e3e8de;
+  background: #252b25;
+  border-color: #41483f;
+}
+
+:root[data-theme='dark'] .button-outline:hover {
+  background: #303830;
+}
+
+:root[data-theme='dark'] .field-label {
+  color: #d2d7cd;
+}
+
+:root[data-theme='dark'] .field-label input,
+:root[data-theme='dark'] .field-label textarea,
+:root[data-theme='dark'] .friend-search input {
+  color: #eceee8;
+  background: #191e19;
+  border-color: #41483f;
+}
+
+:root[data-theme='dark'] .field-label input:focus,
+:root[data-theme='dark'] .field-label textarea:focus {
+  border-color: #c7a5ee;
+  box-shadow: 0 0 0 3px #c7a5ee25;
+}
+
+:root[data-theme='dark'] .avatar {
+  color: #f0d8c1;
+  background: #594a3d;
+}
+
+:root[data-theme='dark'] .text-button,
+:root[data-theme='dark'] .add-song,
+:root[data-theme='dark'] .auth-switch a,
+:root[data-theme='dark'] .profile-menu-action {
+  color: #c7a5ee;
+}
+
+:root[data-theme='dark'] .theme-switch {
+  background: #3c2c4e;
+  border-color: #5a446f;
+}
+
+:root[data-theme='dark'] .theme-switch[aria-checked='true'] {
+  background: #7650a5;
+  border-color: #7650a5;
+}
+
+:root[data-theme='dark'] .theme-switch-thumb {
+  background: #f5f0fa;
+}
+
+:root[data-theme='dark'] .auth-form-side {
+  box-shadow: 0 12px 36px #0004;
+}

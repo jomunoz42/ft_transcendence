@@ -1,0 +1,66 @@
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 22px;
+}
+
+.settings-card {
+  padding: 23px;
+}
+
+.settings-card .section-heading {
+  margin-bottom: 23px;
+}
+
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+
+  min-height: 67px;
+
+  border-top: 1px solid #efeee8;
+}
+
+.setting-toggle strong,
+.setting-toggle small {
+  display: block;
+}
+
+.setting-toggle strong {
+  font-size: 12px;
+}
+
+.setting-toggle small {
+  margin-top: 4px;
+
+  color: #85877e;
+  font-size: 10px;
+}
+
+.setting-toggle input {
+  width: 17px;
+  height: 17px;
+
+  accent-color: #7650a5;
+}
+
+.settings-save-message {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 1050px) {
+  .settings-grid {
+    gap: 15px;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
