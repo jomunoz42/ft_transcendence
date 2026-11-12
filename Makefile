@@ -54,7 +54,7 @@ login:
 		\rF12 > Application > Cookies > Add the Name and Value"
 
 sample: #down db-reset up migrate
-	@docker exec ft_transcendence-backend-1 python -m app.sample
+	$(COMPOSE) -f "$(COMPOSE_FILE)" exec backend python -m app.sample
 
 test: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend pytest
