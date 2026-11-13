@@ -106,7 +106,7 @@ uvicorn app.main:app --reload
 
 #### Routes
 ```python
-from fastapi import APIRouter, Depends, HTTPException, responses
+from fastapi import APIRouter, Depends
 
 router = APIRouter()
 
@@ -115,20 +115,39 @@ def get_all():
 	...
 ```
 
-#### HTTP Exceptions
+#### Error handling
+
+All errors live in `app/errors/__init__.py`. Import the module, raise directly:
+
 ```python
-# /app/crud/xxx
-class Error<ErrorName>(Exception):
-    pass
+from app import errors
 
-...
-except:
-	raise Error<ErrorName>("Error when reading profiles")
+# Pre-built HTTPException instances — no parentheses
+raise errors.HTTP_404_NOT_FOUND
+raise errors.HTTP_422_UNPROCESSABLE_CONTENT
+raise errors.HTTP_409_CONFLICT
 
-# /app/routes/xxx
-from fastapi import HTTPException
-
-...
-except Exception as error:
-	raise HTTPException(status_code=400, detail=str(error))
+# Dynamic errors — functions that return an HTTPException
+raise errors.http_422_registration("email", "not a valid email address")
 ```
+
+No custom exception classes. No `try/except` wrappers to convert exceptions into
+HTTP responses. Do not catch DB errors in crud functions — let them bubble up as
+500s with a full traceback in server logs.
+
+#### Session commits
+
+Routes do not call `session.commit()` manually. Instead, attach a `commit_session`
+dependency to the router:
+
+```python
+def commit_session(session: Session = Depends(get_session)):
+    yield
+    session.commit()
+
+router = APIRouter(dependencies=[Depends(commit_session)])
+```
+
+The commit runs automatically after a successful response. If any exception is
+raised, the yield never reaches `session.commit()`, so nothing is committed.
+Rule functions use `session.flush()` to surface DB errors early without committing.

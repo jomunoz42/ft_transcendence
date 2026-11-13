@@ -6,12 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.current_user import current_user
-from app.auth.login import InvalidCredentials, authenticate
-from app.auth.registration import EmailTaken, InvalidRegistration, register_user
+from app.auth.login import authenticate
+from app.auth.registration import register_user
 from app.auth.sessions import SESSION_LIFETIME, end_session, start_session
 from app.db import get_session, _public
 from app.db.models import User
 from app.realtime.notifications import LogoutNotifier, get_logout_notifier
+from app import errors
 
 router = APIRouter()
 
@@ -28,14 +29,7 @@ class LoginBody(BaseModel):
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(body: RegisterBody, session: Session = Depends(get_session)) -> dict:
     """Create an account and its profile; 201 with the public user, 422 naming the bad field, 409 if the email is taken."""
-    try:
-        user = register_user(session, body.email, body.password, body.display_name)
-    except InvalidRegistration as error:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, {"field": error.field, "reason": error.reason}
-        ) from None
-    except EmailTaken:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered") from None
+    user = register_user(session, body.email, body.password, body.display_name)
     session.commit()
     return _public(user)
 
@@ -45,9 +39,9 @@ def login(body: LoginBody, response: Response, session: Session = Depends(get_se
     """Log in; 200 with the public user and the session cookie set, 401 for any refusal."""
     try:
         user = authenticate(session, body.email, body.password)
-    except InvalidCredentials:
+    except HTTPException:
         session.commit()  # keep: saves the failed-attempt count, or the lockout never triggers
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password") from None
+        raise
     token = start_session(session, user)
     session.commit()
     response.set_cookie(

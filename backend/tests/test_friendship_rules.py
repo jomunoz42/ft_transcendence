@@ -3,11 +3,12 @@
 import datetime
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import func, insert, select
 
 from app.db.models import Block, Friendship, User
 from app.routes.v1.friendships import (
-    NotAllowed, NotFound, accept_request, block_user, cancel_request, check_not_blocked, decline_request,
+    accept_request, block_user, cancel_request, check_not_blocked, decline_request,
     remove_friend, send_request, unblock_user,
 )
 
@@ -38,8 +39,9 @@ def test_a_blocked_user_acting_on_the_blocker_sees_not_found(session):
     bob = make_user(session, "bob@myplaylist.test")
     block(session, alice, bob)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         check_not_blocked(session, bob.id, alice.id)
+    assert exc.value.status_code == 404
 
 
 def test_the_blocker_acting_on_the_blocked_user_is_told_to_unblock_first(session):
@@ -47,8 +49,9 @@ def test_the_blocker_acting_on_the_blocked_user_is_told_to_unblock_first(session
     bob = make_user(session, "bob@myplaylist.test")
     block(session, alice, bob)
 
-    with pytest.raises(NotAllowed):
+    with pytest.raises(HTTPException) as exc:
         check_not_blocked(session, alice.id, bob.id)
+    assert exc.value.status_code == 409
 
 
 def request(session, requester, addressee, status="pending"):
@@ -75,8 +78,9 @@ def test_i_cannot_accept_my_own_request(session):
     bob = make_user(session, "bob@myplaylist.test")
     row = request(session, alice, bob)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         accept_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
     assert row.status == "pending"
 
 
@@ -87,8 +91,9 @@ def test_there_is_nothing_to_accept_without_a_pending_request(session, status):
     if status is not None:
         request(session, bob, alice, status)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         accept_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
 
 
 def test_a_blocked_user_cannot_accept_and_is_not_told_why(session):
@@ -97,8 +102,9 @@ def test_a_blocked_user_cannot_accept_and_is_not_told_why(session):
     row = request(session, alice, bob)
     block(session, alice, bob)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         accept_request(session, bob.id, alice.id)
+    assert exc.value.status_code == 404
     assert row.status == "pending"
 
 
@@ -120,8 +126,9 @@ def test_i_cannot_decline_my_own_request(session):
     bob = make_user(session, "bob@myplaylist.test")
     row = request(session, alice, bob)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         decline_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
     assert row.status == "pending"
 
 
@@ -132,8 +139,9 @@ def test_there_is_nothing_to_decline_without_a_pending_request(session, status):
     if status is not None:
         request(session, bob, alice, status)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         decline_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
 
 
 def test_a_blocked_user_cannot_decline_and_is_not_told_why(session):
@@ -142,8 +150,9 @@ def test_a_blocked_user_cannot_decline_and_is_not_told_why(session):
     row = request(session, alice, bob)
     block(session, alice, bob)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         decline_request(session, bob.id, alice.id)
+    assert exc.value.status_code == 404
     assert row.status == "pending"
 
 
@@ -169,8 +178,9 @@ def test_i_cannot_cancel_a_request_sent_to_me(session):
     bob = make_user(session, "bob@myplaylist.test")
     row = request(session, bob, alice)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         cancel_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
     assert row.status == "pending"
 
 
@@ -181,8 +191,9 @@ def test_there_is_nothing_to_cancel_without_my_pending_request(session, status):
     if status is not None:
         request(session, alice, bob, status)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         cancel_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
 
 
 def test_a_blocked_user_cannot_cancel_and_is_not_told_why(session):
@@ -191,8 +202,9 @@ def test_a_blocked_user_cannot_cancel_and_is_not_told_why(session):
     request(session, bob, alice)
     block(session, alice, bob)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         cancel_request(session, bob.id, alice.id)
+    assert exc.value.status_code == 404
     assert friendship_rows(session) == 1
 
 
@@ -218,8 +230,9 @@ def test_there_is_nothing_to_remove_without_a_friendship(session, status):
     if status is not None:
         request(session, bob, alice, status)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         remove_friend(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
     assert friendship_rows(session) == (0 if status is None else 1)
 
 
@@ -229,8 +242,9 @@ def test_a_blocked_user_cannot_remove_and_is_not_told_why(session):
     request(session, alice, bob, "accepted")
     block(session, alice, bob)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         remove_friend(session, bob.id, alice.id)
+    assert exc.value.status_code == 404
     assert friendship_rows(session) == 1
 
 
@@ -309,16 +323,18 @@ def test_blocking_a_user_who_does_not_exist_is_not_found(session, target):
     session.flush()
     them_id = alice.id + 1000 if target == "unknown" else bob.id
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         block_user(session, alice.id, them_id)
+    assert exc.value.status_code == 404
     assert block_rows(session) == 0
 
 
 def test_i_cannot_block_myself(session):
     alice = make_user(session, "alice@myplaylist.test")
 
-    with pytest.raises(NotAllowed):
+    with pytest.raises(HTTPException) as exc:
         block_user(session, alice.id, alice.id)
+    assert exc.value.status_code == 409
     assert block_rows(session) == 0
 
 
@@ -341,8 +357,9 @@ def test_there_is_nothing_to_unblock_without_my_block(session):
     alice = make_user(session, "alice@myplaylist.test")
     bob = make_user(session, "bob@myplaylist.test")
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         unblock_user(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
 
 
 def test_only_the_blocker_can_lift_a_block(session):
@@ -350,8 +367,9 @@ def test_only_the_blocker_can_lift_a_block(session):
     bob = make_user(session, "bob@myplaylist.test")
     block_user(session, alice.id, bob.id)
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         unblock_user(session, bob.id, alice.id)
+    assert exc.value.status_code == 404
     assert block_rows(session) == 1
 
 
@@ -364,8 +382,9 @@ def test_unblocking_leaves_the_other_users_block_in_place(session):
     unblock_user(session, alice.id, bob.id)
 
     assert session.get(Block, (bob.id, alice.id)) is not None
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         send_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
 
 
 # deleted accounts
@@ -396,6 +415,7 @@ def test_every_action_on_a_deleted_account_is_not_found_and_changes_nothing(sess
     session.flush()
     before = (friendship_rows(session), block_rows(session), session.scalar(select(Friendship.status)))
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         rule(session, alice.id, bob.id)
+    assert exc.value.status_code == 404
     assert (friendship_rows(session), block_rows(session), session.scalar(select(Friendship.status))) == before

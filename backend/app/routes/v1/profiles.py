@@ -1,7 +1,7 @@
 # TODO: Fix the /me profiles
 # TODO: Add rolllback on comments failure
 
-from fastapi import APIRouter, Depends, HTTPException, responses
+from fastapi import APIRouter, Depends, responses
 from sqlalchemy.orm import Session
 from app.db import get_session
 from app.auth.current_user import current_user
@@ -12,6 +12,7 @@ from app.db.models import User, Top10Entry
 from app.crud.friendship import are_friends
 from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
 from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
+from app import errors
 
 router = APIRouter()
 
@@ -19,17 +20,9 @@ router = APIRouter()
 # /profiles
 ################################################
 
-# @router.get("/testssss")
-# def get_tops(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-# 	top10s = session.query(Top10Entry).all()
-# 	return top10s
-
 @router.get("")
 def get_profiles(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		profiles = read_profiles(session)
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	profiles = read_profiles(session)
 	return profiles
 
 ################################################
@@ -41,17 +34,13 @@ def get_me(session: Session = Depends(get_session), current_user: User = Depends
 	profile = read_profile(profile_id=current_user.profile.id, session=session)
 	user = read_user(user_id=current_user.id, session=session)
 	if not profile:
-		raise HTTPException(status_code=404, detail="profile not found")
+		raise errors.HTTP_404_PROFILE_NOT_FOUND
 	return _me_profile(profile) |\
 		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
 
 @router.post("/me")
 def update_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		user = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
-	except Exception as error:
-		session.rollback()
-		raise HTTPException(status_code=400, detail=str(error))
+	user = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
 	session.commit()
 	return user
 
@@ -66,10 +55,10 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 		return responses.RedirectResponse(url="me", status_code=303)
 	user = read_user(user_id=user_id, session=session)
 	if not user:
-		raise HTTPException(status_code=404, detail="user not found")
+		raise errors.HTTP_404_USER_NOT_FOUND
 	profile = read_profile(profile_id=user.profile.id, session=session)
 	if not profile:
-		raise HTTPException(status_code=404, detail="profile not found")
+		raise errors.HTTP_404_PROFILE_NOT_FOUND
 	is_friend = are_friends(session, current_user.id, user_id)
 	result = {
 		"avatar_url": profile.avatar_url,
@@ -89,19 +78,17 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 
 @router.get("/{user_id}/comments")
 def get_comments(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		comments = read_comments(user_id=user_id, session=session, current_user=current_user)
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	comments = read_comments(user_id=user_id, session=session, current_user=current_user)
 	return comments
 
 @router.post("/{user_id}/comments")
 def post_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user)
-		session.commit()
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	is_friend = are_friends(session=session, a=user_id, b=current_user.id)
+	# TODO: Add a possibility for non-friend but public top 10 to be commented, unless blocked
+	if not is_friend:
+		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
+	comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user)
+	session.commit()
 	return comment
 
 def get_last_comment_id(user_id: int, session: Session, current_user: User) -> int | None:
@@ -111,30 +98,21 @@ def get_last_comment_id(user_id: int, session: Session, current_user: User) -> i
 
 @router.post("/{user_id}/comments/latest")
 def _update_last_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		comment_id = get_last_comment_id(user_id=user_id, session=session, current_user=current_user)
-		comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
-		session.commit()
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	comment_id = get_last_comment_id(user_id=user_id, session=session, current_user=current_user)
+	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
+	session.commit()
 	return comment
 
 @router.post("/{user_id}/comments/{comment_id}")
 def _update_comment(comment_id: int, user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
-		session.commit()
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
+	session.commit()
 	return comment
 
 @router.delete("/{user_id}/comments/{comment_id}")
 def _delete_comment(comment_id: int, user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		delete_comment(user_id=user_id, comment_id=comment_id, session=session, current_user=current_user)
-		session.commit()
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	delete_comment(user_id=user_id, comment_id=comment_id, session=session, current_user=current_user)
+	session.commit()
 	return None
 
 ################################################
@@ -143,26 +121,17 @@ def _delete_comment(comment_id: int, user_id: int, session: Session = Depends(ge
 
 @router.get("/{user_id}/reactions")
 def get_reactions(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		reaction = read_reactions(user_id=user_id, session=session, current_user=current_user)
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	reaction = read_reactions(user_id=user_id, session=session, current_user=current_user)
 	return reaction
 
 @router.post("/{user_id}/reactions")
 def post_reaction(user_id: int, req: ReactionCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		reaction = create_reaction(user_id=user_id, reaction=req.reaction, session=session, current_user=current_user)
-		session.commit()
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	reaction = create_reaction(user_id=user_id, reaction=req.reaction, session=session, current_user=current_user)
+	session.commit()
 	return reaction
 
 @router.delete("/{user_id}/reactions")
 def _delete_reaction(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	try:
-		reaction = delete_reaction(user_id=user_id, session=session, current_user=current_user)
-		session.commit()
-	except Exception as error:
-		raise HTTPException(status_code=400, detail=str(error))
+	reaction = delete_reaction(user_id=user_id, session=session, current_user=current_user)
+	session.commit()
 	return reaction
