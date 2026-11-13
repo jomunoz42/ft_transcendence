@@ -16,6 +16,7 @@ type ShellProps = {
   children: ReactNode
   theme: Theme
   user: User
+  headerNotice: string
   onToggleTheme: () => void
   onLogout: () => Promise<void>
 }
@@ -39,6 +40,7 @@ export default function Shell({
   children,
   theme,
   user,
+  headerNotice,
   onToggleTheme,
   onLogout,
 }: ShellProps) {
@@ -75,6 +77,15 @@ export default function Shell({
           </div>
 
           <div className="topbar-actions">
+            {headerNotice && (
+              <div
+                className="header-notice"
+                role="alert"
+                aria-live="assertive"
+              >
+                {headerNotice}
+              </div>
+            )}
             <button
               className="theme-switch"
               type="button"

@@ -1,5 +1,81 @@
+.friends-page-content {
+  display: grid;
+  gap: 18px;
+}
+
 .friends-card {
   padding: 22px 25px;
+}
+
+.friend-request-heading {
+  margin: 12px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.relationship-state {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.relationship-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.relationship-action {
+  padding: 7px 9px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.relationship-action-danger {
+  color: #a64e4e;
+  border-color: #e7caca;
+}
+
+.relationship-action-danger:hover {
+  background: #f8eaea;
+}
+
+:root[data-theme='dark'] .button-outline.relationship-action-danger {
+  color: #f0aaaa;
+  background: #302626;
+  border-color: #795050;
+}
+
+:root[data-theme='dark'] .button-outline.relationship-action-danger:hover {
+  background: #3a2929;
+}
+
+.add-friend-trigger {
+  margin-top: 14px;
+}
+
+.add-friend-panel {
+  margin-top: 14px;
+  padding: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.add-friend-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.add-friend-panel-heading h3 {
+  margin: 0;
+  font-size: 13px;
 }
 
 .friend-search {
@@ -91,8 +167,8 @@
   background: #79a06b;
 }
 
-.presence.is-unknown i {
-  background: #a996c3;
+.presence.is-offline i {
+  background: #d45b5b;
 }
 
 .presence.is-reconnecting i {
@@ -113,6 +189,10 @@
   gap: 7px;
 
   margin-left: auto;
+}
+
+.friend-row-actions .relationship-actions {
+  margin-left: 0;
 }
 
 .friend-row-actions .friend-view {
@@ -156,6 +236,10 @@
   .friend-row-actions {
     flex-wrap: wrap;
     margin-left: auto;
+  }
+
+  .relationship-actions {
+    justify-content: flex-end;
   }
 }
 
