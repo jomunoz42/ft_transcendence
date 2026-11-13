@@ -1,0 +1,197 @@
+.eyebrow {
+  color: #85877d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.65px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+
+  padding: 11px 16px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 7px;
+
+  transition:
+    transform 0.15s,
+    background 0.15s;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button span,
+.text-button span {
+  font-size: 15px;
+}
+
+.button-dark {
+  color: #fff;
+  background: #7650a5;
+}
+
+.button-dark:hover {
+  color: #fff;
+  background: #65428e;
+}
+
+.button-outline {
+  color: #42473e;
+  background: transparent;
+  border-color: #dcded5;
+}
+
+.button-outline:hover {
+  background: #f4f5ef;
+}
+
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 7px 0;
+
+  color: #704a9d;
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.card {
+  padding: 22px;
+
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 16px;
+}
+
+.section-heading h2 {
+  margin: 5px 0 0;
+
+  font-family: Montserrat, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  font-optical-sizing: auto;
+  letter-spacing: -0.4px;
+}
+
+.section-heading-no-eyebrow h2 {
+  margin-top: 0;
+}
+
+.avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+
+  width: 42px;
+  height: 42px;
+
+  color: #704f3a;
+  font-family: serif;
+  font-size: 14px;
+  font-weight: 600;
+
+  background: #ead9c8;
+  border-radius: 50%;
+}
+
+.avatar-small {
+  width: 34px;
+  height: 34px;
+
+  font-size: 11px;
+}
+
+.avatar-large {
+  width: 59px;
+  height: 59px;
+
+  font-size: 19px;
+
+  background: #e9d1ba;
+}
+
+.field-label {
+  display: grid;
+  gap: 8px;
+
+  margin: 16px 0;
+
+  color: #55594f;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.field-label input,
+.field-label textarea {
+  width: 100%;
+  padding: 11px 12px;
+
+  color: #30332d;
+  font-size: 12px;
+
+  resize: vertical;
+  background: #fffefa;
+  border: 1px solid #e3e3db;
+  border-radius: 6px;
+  outline: none;
+}
+
+.field-label input:focus,
+.field-label textarea:focus {
+  border-color: #9a79be;
+  box-shadow: 0 0 0 3px #7650a516;
+}
+
+.social-state {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.field-error,
+.form-error {
+  color: #985f52;
+  font-size: 11px;
+}
+
+.field-error {
+  font-weight: 500;
+}
+
+.form-error {
+  margin: 10px 0;
+}
+
+@media (max-width: 760px) {
+  .card {
+    padding: 18px;
+  }
+
+  .section-heading h2 {
+    font-size: 20px;
+  }
+
+}

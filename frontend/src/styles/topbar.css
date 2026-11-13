@@ -1,0 +1,104 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 104px;
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-family: Montserrat, sans-serif;
+  font-size: 25px;
+  font-weight: 600;
+  font-optical-sizing: auto;
+  letter-spacing: -0.4px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.theme-switch {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  width: 48px;
+  height: 28px;
+  padding: 3px;
+  cursor: pointer;
+  background: #e9e8ed;
+  border: 1px solid #d8d7df;
+  border-radius: 999px;
+  transition:
+    background 0.18s,
+    border-color 0.18s;
+}
+
+.theme-switch-thumb {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px #201b2b32;
+  transform: translateX(0);
+  transition:
+    transform 0.2s ease,
+    background 0.18s;
+}
+
+.theme-switch-thumb img {
+  display: block;
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  filter:
+    brightness(0)
+    saturate(100%)
+    invert(36%)
+    sepia(21%)
+    saturate(1079%)
+    hue-rotate(224deg)
+    brightness(90%)
+    contrast(91%);
+}
+
+.theme-switch[aria-checked='true'] {
+  background: #7650a5;
+  border-color: #7650a5;
+}
+
+.theme-switch[aria-checked='true'] .theme-switch-thumb {
+  transform: translateX(20px);
+}
+
+.theme-switch:focus-visible {
+  outline: 3px solid #9a79be;
+  outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    height: 82px;
+  }
+
+  .topbar h1 {
+    font-size: 22px;
+  }
+
+  .topbar-actions {
+    gap: 8px;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-switch,
+  .theme-switch-thumb {
+    transition: none;
+  }
+}

@@ -1,0 +1,94 @@
+.song-list {
+  display: grid;
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 61px;
+  border-top: 1px solid #efeee8;
+}
+
+.song-rank {
+  width: 17px;
+  color: #999b91;
+  font-size: 11px;
+}
+
+.album-art {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: #fff;
+  font-size: 19px;
+  border-radius: 5px;
+}
+
+.album-art.amber {
+  background: linear-gradient(145deg, #de9766, #743d36);
+}
+
+.album-art.rose {
+  background: linear-gradient(145deg, #e7b3a0, #8b5367);
+}
+
+.album-art.blue {
+  background: linear-gradient(145deg, #80a6a1, #3d5361);
+}
+
+.album-art.violet {
+  background: linear-gradient(145deg, #b99eb3, #5e526f);
+}
+
+.album-art.green {
+  background: linear-gradient(145deg, #9ab28b, #496448);
+}
+
+.song-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-info strong,
+.song-info span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.song-info strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.song-info span {
+  margin-top: 4px;
+  color: #85877e;
+  font-size: 10px;
+}
+
+.duration {
+  width: 33px;
+  color: #85877e;
+  font-size: 10px;
+  text-align: right;
+}
+
+@media (max-width: 430px) {
+  .song-row {
+    gap: 8px;
+  }
+
+  .song-info strong {
+    font-size: 11px;
+  }
+
+  .duration {
+    width: 28px;
+    font-size: 9px;
+  }
+}

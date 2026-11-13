@@ -1,0 +1,147 @@
+.sidebar-bottom {
+  margin-top: auto;
+}
+
+.mini-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 8px;
+  border-top: 1px solid var(--line);
+}
+
+.mini-profile strong,
+.mini-profile small {
+  display: block;
+}
+
+.mini-profile strong {
+  font-size: 12px;
+}
+
+.mini-profile small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.profile-menu-name {
+  padding: 2px 4px 9px;
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-menu-action {
+  width: 100%;
+  padding: 9px 8px;
+  color: #704a9d;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.profile-menu-action:hover,
+.profile-menu-action:focus-visible {
+  background: var(--soft-green);
+}
+
+.profile-menu-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.profile-menu-error {
+  margin: 6px 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.profile-menu-error {
+  color: #985f52;
+}
+
+@media (min-width: 761px) {
+  .sidebar-bottom {
+    position: absolute;
+    right: 9px;
+    bottom: 14px;
+    left: 9px;
+    height: 42px;
+    margin: 0;
+  }
+
+  .mini-profile {
+    position: relative;
+    inset: auto;
+    justify-content: flex-start;
+    width: 100%;
+    height: 42px;
+    padding: 0 8px;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+  }
+
+  .mini-profile:hover {
+    background: var(--paper);
+  }
+
+  .sidebar-profile-avatar {
+    position: absolute;
+    bottom: 0;
+    left: 8px;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .mini-profile > span:not(.avatar) {
+    width: 0;
+    margin-left: 42px;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      opacity 0.12s ease,
+      width 0.22s ease;
+  }
+
+  .sidebar:hover .mini-profile > span:not(.avatar) {
+    width: auto;
+    opacity: 1;
+  }
+
+  .profile-menu {
+    position: absolute;
+    bottom: 0;
+    left: 54px;
+    z-index: 5;
+    width: 190px;
+    padding: 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    box-shadow: 0 8px 24px #20221f24;
+  }
+}
+
+@media (max-width: 760px) {
+  .sidebar-bottom,
+  .profile-menu {
+    display: none;
+  }
+}

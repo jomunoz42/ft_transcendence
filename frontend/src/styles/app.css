@@ -1,0 +1,19 @@
+@import './base.css';
+
+@import './shell.css';
+@import './sidebar.css';
+@import './account-menu.css';
+@import './topbar.css';
+
+@import './components.css';
+
+@import './home.css';
+@import './list.css';
+@import './top10.css';
+@import './home-profile.css';
+
+@import './friends.css';
+@import './profile.css';
+@import './settings.css';
+@import './auth.css';
+@import './theme.css';
