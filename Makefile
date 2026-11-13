@@ -54,7 +54,7 @@ login:
 		\rF12 > Application > Cookies > Add the Name and Value"
 
 sample: #down db-reset up migrate
-	$(COMPOSE) -f "$(COMPOSE_FILE)" exec backend python -m app.sample
+	$(COMPOSE) -f "$(COMPOSE_FILE)" exec -T backend python -m app.sample
 
 test: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend pytest

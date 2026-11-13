@@ -11,8 +11,9 @@ the backend as a whole. Usage guide: `docs/andre_docs_code/database.md`.
 
 import os
 
+from fastapi import Depends
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from .models import User, Profile
 
 DATABASE_URL = os.environ["DATABASE_URL"]
@@ -27,6 +28,10 @@ def get_session():
         yield session
     finally:
         session.close()
+
+def commit_session(session: Session = Depends(get_session)):
+    yield
+    session.commit()
 
 # ##############################
 # serializers

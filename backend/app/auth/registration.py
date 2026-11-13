@@ -8,19 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.passwords import hash_password
 from app.db.models import Profile, User
-
-
-class EmailTaken(Exception):
-    """Another account already uses this email."""
-
-
-class InvalidRegistration(Exception):
-    """One field breaks the registration rules. The route layer reports field and reason."""
-
-    def __init__(self, field: str, reason: str):
-        super().__init__(f"{field}: {reason}")
-        self.field = field
-        self.reason = reason
+from app import errors
 
 
 def normalize_email(email: str) -> str:
@@ -44,17 +32,17 @@ def _looks_like_email(email: str) -> bool:
 
 
 def register_user(session: Session, email: str, password: str, display_name: str) -> User:
-    """Create a user and their profile. Raises InvalidRegistration or EmailTaken; never commits."""
+    """Create a user and their profile. Raises on bad input or duplicate email; never commits."""
     email = normalize_email(email)
     if not _looks_like_email(email):
-        raise InvalidRegistration("email", "not a valid email address")
+        raise errors.http_422_registration("email", "not a valid email address")
     if not 8 <= len(password) <= 128:
-        raise InvalidRegistration("password", "must be 8 to 128 characters")
+        raise errors.http_422_registration("password", "must be 8 to 128 characters")
     display_name = display_name.strip()
     if not display_name:
-        raise InvalidRegistration("display_name", "required")
+        raise errors.http_422_registration("display_name", "required")
     if "\x00" in display_name:
-        raise InvalidRegistration("display_name", "contains a NUL character")
+        raise errors.http_422_registration("display_name", "contains a NUL character")
     user = User(email=email, password_hash=hash_password(password))
     user.profile = Profile(display_name=display_name)
     session.flush()  # keep: the caller's pending errors must not be blamed on this insert
@@ -62,5 +50,5 @@ def register_user(session: Session, email: str, password: str, display_name: str
         with session.begin_nested():
             session.add(user)
     except IntegrityError:
-        raise EmailTaken(email) from None
+        raise errors.HTTP_409_EMAIL_TAKEN from None
     return user
