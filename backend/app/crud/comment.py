@@ -37,6 +37,8 @@ def update_comment(comment_id: int, user_id: int, body: str, session: Session, c
 			Top10Comment.top10_owner_id == user_id,
 		)
 	).first()
+	if not top10comment:
+		raise errors.HTTP_404_NOT_FOUND
 	top10comment.body = body
 	session.flush()
 	return top10comment
@@ -49,6 +51,8 @@ def delete_comment(comment_id: int, user_id: int, session: Session, current_user
 			Top10Comment.top10_owner_id == user_id,
 		)
 	).first()
+	if not top10comment:
+		raise errors.HTTP_404_NOT_FOUND
 	session.delete(top10comment)
 	session.flush()
 	return None

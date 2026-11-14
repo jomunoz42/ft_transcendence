@@ -2,7 +2,7 @@
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.current_user import current_user
 from app.crud.friendship import create_friendship, list_friends, list_pending, read_friendship
@@ -48,7 +48,7 @@ def send_request(session: Session, requester_id: int, addressee_id: int) -> Frie
 
     try:
         request = create_friendship(session, requester_id, addressee_id)
-    except Exception:
+    except HTTPException:
         raise errors.HTTP_404_NOT_FOUND from None
     if request is None:
         return send_request(session, requester_id, addressee_id)
