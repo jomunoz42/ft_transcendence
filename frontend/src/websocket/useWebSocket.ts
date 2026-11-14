@@ -1,10 +1,5 @@
-import {
-  useEffect,
-  useState,
-} from 'react'
-
+import { useEffect, useState } from 'react'
 import { connectWebSocket } from './client.ts'
-import { parsePresenceMessage } from './presenceMessages.ts'
 
 const emptyOnlineIds = new Set<number>()
 
@@ -15,269 +10,161 @@ export type PresenceStatus =
   | 'reconnecting'
   | 'login-required'
 
-export type PresenceState = {
-  status: PresenceStatus
-  onlineIds: Set<number>
+type PresenceMessage =
+  | { type: 'presence_snapshot'; data: { online_user_ids: number[] } }
+  | { type: 'presence'; data: { user_id: number; online: boolean } }
+
+function parsePresenceMessage(value: unknown): PresenceMessage | null {
+  if (typeof value !== 'string') return null
+
+  let message: unknown
+  try {
+    message = JSON.parse(value)
+  } catch {
+    return null
+  }
+
+  if (typeof message !== 'object' || message === null || !('type' in message) || !('data' in message)) {
+    return null
+  }
+
+  const candidate = message as { type: unknown; data: unknown }
+  if (typeof candidate.data !== 'object' || candidate.data === null) return null
+
+  if (candidate.type === 'presence_snapshot' && 'online_user_ids' in candidate.data) {
+    const ids = (candidate.data as { online_user_ids: unknown }).online_user_ids
+    if (Array.isArray(ids) && ids.every((id) => Number.isSafeInteger(id) && id > 0)) {
+      return { type: 'presence_snapshot', data: { online_user_ids: ids as number[] } }
+    }
+  }
+
+  if (candidate.type === 'presence' && 'user_id' in candidate.data && 'online' in candidate.data) {
+    const data = candidate.data as { user_id: unknown; online: unknown }
+    if (Number.isSafeInteger(data.user_id) && Number(data.user_id) > 0 && typeof data.online === 'boolean') {
+      return { type: 'presence', data: { user_id: Number(data.user_id), online: data.online } }
+    }
+  }
+
+  return null
 }
 
-function getRetryDelay(attempt: number) {
-  const limitedAttempt = Math.min(attempt, 5)
-  const multiplier = Math.pow(2, limitedAttempt)
-  const exponentialDelay = 1_000 * multiplier
-  const cappedDelay = Math.min(30_000, exponentialDelay)
-
-  const randomValue = Math.random()
-  const jitter = 0.5 + randomValue / 2
-
-  return cappedDelay * jitter
-}
-
-export function useWebSocket(
-  enabled: boolean,
-): PresenceState {
-  const [status, setStatus] = useState<PresenceStatus>(
-    'disabled',
-  )
-
-  const [onlineIds, setOnlineIds] = useState<Set<number>>(
-    () => {
-      return new Set()
-    },
-  )
+export function useWebSocket(enabled: boolean) {
+  const [status, setStatus] = useState<PresenceStatus>('disabled')
+  const [onlineIds, setOnlineIds] = useState<Set<number>>(() => new Set())
 
   useEffect(() => {
-    if (!enabled) {
-      return
-    }
+    if (!enabled) return
 
     let stopped = false
     let socket: WebSocket | null = null
-    let attempts = 0
-
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let snapshotTimer: ReturnType<typeof setTimeout> | null = null
-
+    let attempts = 0
     const requests = new AbortController()
 
-    function clearSnapshotTimer() {
-      if (snapshotTimer !== null) {
-        clearTimeout(snapshotTimer)
-      }
-
+    const clearSnapshotTimer = () => {
+      if (snapshotTimer !== null) clearTimeout(snapshotTimer)
       snapshotTimer = null
     }
 
-    function clearRetryTimer() {
-      if (retryTimer !== null) {
-        clearTimeout(retryTimer)
-      }
-
+    const clearRetryTimer = () => {
+      if (retryTimer !== null) clearTimeout(retryTimer)
       retryTimer = null
     }
 
-    function markUnknown(nextStatus: PresenceStatus) {
+    const markUnknown = (nextStatus: PresenceStatus) => {
       setOnlineIds(new Set())
       setStatus(nextStatus)
     }
 
-    function scheduleRetry() {
-      if (stopped) {
-        return
-      }
-
-      if (retryTimer !== null) {
-        return
-      }
-
+    const scheduleRetry = () => {
+      if (stopped || retryTimer !== null) return
       markUnknown('reconnecting')
-
-      const retryDelay = getRetryDelay(attempts)
-      attempts += 1
-
+      const cap = Math.min(30_000, 1_000 * 2 ** Math.min(attempts++, 5))
       retryTimer = setTimeout(() => {
         retryTimer = null
         void connect()
-      }, retryDelay)
+      }, cap * (0.5 + Math.random() / 2))
     }
 
-    async function sessionIsValid() {
+    const connect = async () => {
+      if (stopped) return
+      clearRetryTimer()
+      markUnknown(attempts === 0 ? 'connecting' : 'reconnecting')
+
       try {
         const response = await fetch('/api/v1/auth/me', {
           credentials: 'include',
           cache: 'no-store',
           signal: requests.signal,
         })
-
-        if (stopped) {
-          return false
-        }
-
+        if (stopped) return
         if (response.status === 401) {
           markUnknown('login-required')
           stopped = true
-
-          return false
+          return
         }
-
         if (!response.ok) {
           scheduleRetry()
-          return false
+          return
         }
-
-        return true
       } catch {
-        if (!stopped) {
-          scheduleRetry()
-        }
-
-        return false
-      }
-    }
-
-    function startSnapshotTimeout(
-      currentSocket: WebSocket,
-      isSynchronized: () => boolean,
-    ) {
-      snapshotTimer = setTimeout(() => {
-        if (stopped) {
-          return
-        }
-
-        if (socket !== currentSocket) {
-          return
-        }
-
-        if (isSynchronized()) {
-          return
-        }
-
-        currentSocket.close()
-      }, 30_000)
-    }
-
-    async function connect() {
-      if (stopped) {
+        if (!stopped) scheduleRetry()
         return
       }
 
-      clearRetryTimer()
-
-      let nextStatus: PresenceStatus = 'reconnecting'
-
-      if (attempts === 0) {
-        nextStatus = 'connecting'
-      }
-
-      markUnknown(nextStatus)
-
-      const validSession = await sessionIsValid()
-
-      if (!validSession) {
-        return
-      }
-
-      if (stopped) {
-        return
-      }
-
-      let currentSocket: WebSocket
-
+      if (stopped) return
+      let current: WebSocket
       try {
-        currentSocket = connectWebSocket()
+        current = connectWebSocket()
       } catch {
         scheduleRetry()
         return
       }
-
-      socket = currentSocket
-
+      socket = current
       let synchronized = false
 
-      startSnapshotTimeout(
-        currentSocket,
-        () => {
-          return synchronized
-        },
-      )
+      snapshotTimer = setTimeout(() => {
+        if (!stopped && socket === current && !synchronized) current.close()
+      }, 30_000)
 
-      currentSocket.addEventListener(
-        'message',
-        (event: MessageEvent<unknown>) => {
-          if (stopped) {
-            return
-          }
+      current.addEventListener('message', (event: MessageEvent<unknown>) => {
+        if (stopped || socket !== current) return
+        const message = parsePresenceMessage(event.data)
+        if (!message) return
 
-          if (socket !== currentSocket) {
-            return
-          }
-
-          const message = parsePresenceMessage(event.data)
-
-          if (message === null) {
-            return
-          }
-
-          if (message.type === 'presence_snapshot') {
-            synchronized = true
-            attempts = 0
-
-            clearSnapshotTimer()
-
-            setOnlineIds(
-              new Set(message.data.online_user_ids),
-            )
-
-            setStatus('ready')
-            return
-          }
-
-          if (!synchronized) {
-            return
-          }
-
-          setOnlineIds((currentIds) => {
-            const nextIds = new Set(currentIds)
-            const userId = message.data.user_id
-
-            if (message.data.online) {
-              nextIds.add(userId)
-            } else {
-              nextIds.delete(userId)
-            }
-
-            return nextIds
-          })
-        },
-      )
-
-      currentSocket.addEventListener(
-        'close',
-        (event: CloseEvent) => {
-          if (stopped) {
-            return
-          }
-
-          if (socket !== currentSocket) {
-            return
-          }
-
+        if (message.type === 'presence_snapshot') {
+          synchronized = true
+          attempts = 0
           clearSnapshotTimer()
-          socket = null
+          setOnlineIds(new Set(message.data.online_user_ids))
+          setStatus('ready')
+          return
+        }
 
-          if (event.code === 1008) {
-            markUnknown('login-required')
-            stopped = true
+        if (!synchronized) return
+        setOnlineIds((currentIds) => {
+          const nextIds = new Set(currentIds)
+          if (message.data.online) nextIds.add(message.data.user_id)
+          else nextIds.delete(message.data.user_id)
+          return nextIds
+        })
+      })
 
-            return
-          }
+      current.addEventListener('close', (event: CloseEvent) => {
+        if (stopped || socket !== current) return
+        clearSnapshotTimer()
+        socket = null
+        if (event.code === 1008) {
+          markUnknown('login-required')
+          stopped = true
+          return
+        }
+        scheduleRetry()
+      })
 
-          scheduleRetry()
-        },
-      )
-
-      currentSocket.addEventListener('error', () => {
-        // A failed upgrade is followed by close.
-        // Reconnection is handled by the close event.
+      current.addEventListener('error', () => {
+        // The browser follows a failed upgrade with close; retry only there.
       })
     }
 
@@ -285,28 +172,13 @@ export function useWebSocket(
 
     return () => {
       stopped = true
-
       requests.abort()
       clearRetryTimer()
       clearSnapshotTimer()
-
-      if (socket !== null) {
-        socket.close()
-      }
-
+      if (socket !== null) socket.close()
       socket = null
     }
   }, [enabled])
 
-  if (!enabled) {
-    return {
-      status: 'disabled',
-      onlineIds: emptyOnlineIds,
-    }
-  }
-
-  return {
-    status,
-    onlineIds,
-  }
+  return { status: enabled ? status : 'disabled', onlineIds: enabled ? onlineIds : emptyOnlineIds }
 }
