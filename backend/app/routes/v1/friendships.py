@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth.current_user import current_user
 from app.crud.friendship import create_friendship, list_friends, list_pending, read_friendship
 from app import errors
-from app.db import get_session, commit_session
+from app.db import get_session
 from app.db.models import Block, Friendship, User
 
 def check_exists(session: Session, them_id: int) -> None:
@@ -125,7 +125,7 @@ def unblock_user(session: Session, me_id: int, them_id: int) -> None:
     session.flush()
 
 
-router = APIRouter(dependencies=[Depends(commit_session)])
+router = APIRouter()
 
 
 @router.get("")
@@ -148,6 +148,7 @@ def request(them_id: int, me: User = Depends(current_user), session: Session = D
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     friendship = send_request(session, me.id, them_id)
+    session.commit()
     return {"status": friendship.status}
 
 @router.post("/accept/{them_id}")
@@ -156,6 +157,7 @@ def accept(them_id: int, me: User = Depends(current_user), session: Session = De
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     accept_request(session, me.id, them_id)
+    session.commit()
     return {"status": "accepted"}
 
 @router.post("/decline/{them_id}")
@@ -164,6 +166,7 @@ def decline(them_id: int, me: User = Depends(current_user), session: Session = D
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     decline_request(session, me.id, them_id)
+    session.commit()
     return {"status": "declined"}
 
 @router.post("/cancel/{them_id}")
@@ -172,6 +175,7 @@ def cancel(them_id: int, me: User = Depends(current_user), session: Session = De
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     cancel_request(session, me.id, them_id)
+    session.commit()
     return {"status": "cancelled"}
 
 @router.delete("/{them_id}")
@@ -180,6 +184,7 @@ def remove(them_id: int, me: User = Depends(current_user), session: Session = De
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     remove_friend(session, me.id, them_id)
+    session.commit()
     return {"status": "removed"}
 
 @router.post("/block/{them_id}")
@@ -188,6 +193,7 @@ def block(them_id: int, me: User = Depends(current_user), session: Session = Dep
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     block_user(session, me.id, them_id)
+    session.commit()
     return {"status": "blocked"}
 
 @router.post("/unblock/{them_id}")
@@ -196,4 +202,5 @@ def unblock(them_id: int, me: User = Depends(current_user), session: Session = D
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     unblock_user(session, me.id, them_id)
+    session.commit()
     return {"status": "unblocked"}

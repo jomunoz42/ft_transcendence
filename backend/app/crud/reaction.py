@@ -42,6 +42,8 @@ def delete_reaction(user_id: int, session: Session, current_user: User):
 			Top10Reaction.top10_owner_id == user_id,
 		)
 	).first()
+	if not top10reaction:
+		raise errors.HTTP_404_NOT_FOUND
 	session.delete(top10reaction)
 	session.flush()
 	return None

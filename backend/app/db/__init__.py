@@ -29,10 +29,6 @@ def get_session():
     finally:
         session.close()
 
-def commit_session(session: Session = Depends(get_session)):
-    yield
-    session.commit()
-
 # ##############################
 # serializers
 # ##############################

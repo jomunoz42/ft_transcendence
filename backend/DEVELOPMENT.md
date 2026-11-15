@@ -137,17 +137,9 @@ HTTP responses. Do not catch DB errors in crud functions — let them bubble up 
 
 #### Session commits
 
-Routes do not call `session.commit()` manually. Instead, attach a `commit_session`
-dependency to the router:
+Routes call `session.commit()` explicitly before returning. This guarantees the
+commit succeeds before the client gets a 200. If the commit fails, the client
+gets a 500 — not a false success.
 
-```python
-def commit_session(session: Session = Depends(get_session)):
-    yield
-    session.commit()
-
-router = APIRouter(dependencies=[Depends(commit_session)])
-```
-
-The commit runs automatically after a successful response. If any exception is
-raised, the yield never reaches `session.commit()`, so nothing is committed.
-Rule functions use `session.flush()` to surface DB errors early without committing.
+Rule functions and crud use `session.flush()` to surface DB errors early without
+committing. The route is the only place that commits.
