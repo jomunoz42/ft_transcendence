@@ -122,7 +122,7 @@ class Friendship(Base):
     __table_args__ = (
         CheckConstraint("requester_id <> addressee_id", name="ck_friendships_not_self"),
         CheckConstraint(
-            "status IN ('pending', 'accepted', 'declined', 'blocked')", name="ck_friendships_status"
+            "status IN ('pending', 'accepted', 'declined')", name="ck_friendships_status"
         ),
     )
 
