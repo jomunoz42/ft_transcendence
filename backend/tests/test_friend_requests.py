@@ -1,10 +1,11 @@
 """send_request: the rules for asking someone to be your friend."""
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import func, select
 
 from app.db.models import Block, Friendship, User
-from app.routes.v1.friendships import NotAllowed, NotFound, send_request
+from app.routes.v1.friendships import send_request
 
 
 def make_user(session, email):
@@ -68,8 +69,9 @@ def test_someone_who_was_declined_cannot_ask_again(session):
     request.status = "declined"  # Bob said no
     session.flush()
 
-    with pytest.raises(NotAllowed):
+    with pytest.raises(HTTPException) as exc:
         send_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 409
     assert request.status == "declined"
 
 
@@ -93,8 +95,9 @@ def test_a_blocked_user_cannot_ask_the_blocker_and_is_not_told_why(session):
     session.add(Block(blocker_id=alice.id, blocked_id=bob.id))
     session.flush()
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         send_request(session, bob.id, alice.id)
+    assert exc.value.status_code == 404
     assert friendship_rows(session) == 0
 
 
@@ -104,8 +107,9 @@ def test_the_blocker_must_unblock_before_asking(session):
     session.add(Block(blocker_id=alice.id, blocked_id=bob.id))
     session.flush()
 
-    with pytest.raises(NotAllowed):
+    with pytest.raises(HTTPException) as exc:
         send_request(session, alice.id, bob.id)
+    assert exc.value.status_code == 409
     assert friendship_rows(session) == 0
 
 
@@ -114,8 +118,9 @@ def test_an_impossible_request_is_refused_and_the_session_keeps_working(session,
     alice = make_user(session, "alice@myplaylist.test")
     addressee_id = alice.id if addressee == "self" else -1
 
-    with pytest.raises(NotFound):
+    with pytest.raises(HTTPException) as exc:
         send_request(session, alice.id, addressee_id)
+    assert exc.value.status_code == 404
 
     bob = make_user(session, "bob@myplaylist.test")
     assert send_request(session, alice.id, bob.id).status == "pending"

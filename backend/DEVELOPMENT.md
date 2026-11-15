@@ -106,7 +106,7 @@ uvicorn app.main:app --reload
 
 #### Routes
 ```python
-from fastapi import APIRouter, Depends, HTTPException, responses
+from fastapi import APIRouter, Depends
 
 router = APIRouter()
 
@@ -115,20 +115,31 @@ def get_all():
 	...
 ```
 
-#### HTTP Exceptions
+#### Error handling
+
+All errors live in `app/errors/__init__.py`. Import the module, raise directly:
+
 ```python
-# /app/crud/xxx
-class Error<ErrorName>(Exception):
-    pass
+from app import errors
 
-...
-except:
-	raise Error<ErrorName>("Error when reading profiles")
+# Pre-built HTTPException instances — no parentheses
+raise errors.HTTP_404_NOT_FOUND
+raise errors.HTTP_422_UNPROCESSABLE_CONTENT
+raise errors.HTTP_409_CONFLICT
 
-# /app/routes/xxx
-from fastapi import HTTPException
-
-...
-except Exception as error:
-	raise HTTPException(status_code=400, detail=str(error))
+# Dynamic errors — functions that return an HTTPException
+raise errors.http_422_registration("email", "not a valid email address")
 ```
+
+No custom exception classes. No `try/except` wrappers to convert exceptions into
+HTTP responses. Do not catch DB errors in crud functions — let them bubble up as
+500s with a full traceback in server logs.
+
+#### Session commits
+
+Routes call `session.commit()` explicitly before returning. This guarantees the
+commit succeeds before the client gets a 200. If the commit fails, the client
+gets a 500 — not a false success.
+
+Rule functions and crud use `session.flush()` to surface DB errors early without
+committing. The route is the only place that commits.

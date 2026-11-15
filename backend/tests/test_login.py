@@ -3,9 +3,10 @@
 import datetime
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import func, select
 
-from app.auth.login import InvalidCredentials, authenticate
+from app.auth.login import authenticate
 from app.auth.registration import register_user
 
 
@@ -18,22 +19,24 @@ def test_the_right_email_and_password_return_the_user_whatever_the_email_case(se
 def test_a_wrong_password_is_refused_and_counted(session):
     alice = register_user(session, "alice@x.com", "hunter22", "Alice")
 
-    with pytest.raises(InvalidCredentials):
+    with pytest.raises(HTTPException) as exc:
         authenticate(session, "alice@x.com", "wrong-password")
+    assert exc.value.status_code == 401
 
     session.refresh(alice)
     assert alice.failed_login_count == 1
 
 
 def test_an_unknown_email_gets_the_same_error(session):
-    with pytest.raises(InvalidCredentials):
+    with pytest.raises(HTTPException) as exc:
         authenticate(session, "nobody@x.com", "hunter22")
+    assert exc.value.status_code == 401
 
 
 def fail(session, email, times):
     """Try a wrong password this many times."""
     for _ in range(times):
-        with pytest.raises(InvalidCredentials):
+        with pytest.raises(HTTPException):
             authenticate(session, email, "wrong-password")
 
 
@@ -63,8 +66,9 @@ def test_a_locked_account_is_refused_even_with_the_right_password(session):
     fail(session, "alice@x.com", 5)
     locked_until = alice.locked_until
 
-    with pytest.raises(InvalidCredentials):
+    with pytest.raises(HTTPException) as exc:
         authenticate(session, "alice@x.com", "hunter22")
+    assert exc.value.status_code == 401
     fail(session, "alice@x.com", 3)
 
     session.refresh(alice)
@@ -98,5 +102,6 @@ def test_a_soft_deleted_user_is_refused(session):
     alice.deleted_at = func.now()
     session.flush()
 
-    with pytest.raises(InvalidCredentials):
+    with pytest.raises(HTTPException) as exc:
         authenticate(session, "alice@x.com", "hunter22")
+    assert exc.value.status_code == 401

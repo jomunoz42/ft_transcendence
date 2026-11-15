@@ -4,7 +4,8 @@ import datetime
 
 import pytest
 
-from app.crud.friendship import ErrorCreatingFriendship, create_friendship, is_blocked, list_pending
+from fastapi import HTTPException
+from app.crud.friendship import create_friendship, is_blocked, list_pending
 from app.db.models import Block, Friendship, User
 
 
@@ -94,5 +95,6 @@ def test_create_friendship_returns_none_when_the_pair_already_has_a_row(session)
 def test_create_friendship_refuses_asking_yourself(session):
     alice = make_user(session, "alice@myplaylist.test")
 
-    with pytest.raises(ErrorCreatingFriendship):
+    with pytest.raises(HTTPException) as exc:
         create_friendship(session, alice.id, alice.id)
+    assert exc.value.status_code == 404

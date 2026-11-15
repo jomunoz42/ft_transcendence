@@ -17,7 +17,7 @@
 4. Implement core CRUD routes
    - [x] GET/POST /api/v1/profiles/me — view/edit own profile
    - [x] GET /api/v1/profiles/{user_id} — view someone's profile
-   - [x] Manage own Top 10 (via profile update endpoint)
+   - [ ] Manage own Top 10 (via profile update endpoint)
    - [x] View someone's Top 10 (via profile endpoint, respecting visibility/friendship)
 
 ## Phase 2 — Social features
@@ -39,31 +39,29 @@
 7. Song search API
    - [x] GET /api/v1/songs/search?q=... — search by title/artist
    - [x] Integration with external music API (Spotify/Deezer)
-   - [ ] Add song manually
+8. Profile search API
+   - [ ] GET /api/v1/profiles/search?q=... — search by username/display name
 
 ## Phase 3 — Advanced features
 
-8. Advanced search (module: 1pt)
-   - [ ] GET /api/v1/search/users?q=...&sort=...&page=...
-   - [ ] GET /api/v1/search/songs?q=...&filter=...&page=...
+9. Advanced search (module: 1pt)
+   - [ ] Search profiles by music tastes
+   - [ ] Song Advanced search GET /api/v1/search/songs?q=...&filter=...&page=...
    - [ ] Implement pagination, sorting, filtering across endpoints
-9. Notifications API (module: 1pt)
+   - [ ] Add song manually
+[maybe handled by Joao] 10. Notifications API (module: 1pt)
    - [ ] GET /api/v1/notifications — list notifications
    - [ ] PUT /api/v1/notifications/{id}/read — mark as read
    - [ ] Backend creates notifications on: friend request, comment, reaction, etc.
-10. GDPR compliance (module: 1pt)
+11. GDPR compliance (module: 1pt)
     - [ ] GET /api/v1/users/me/data-export — export all user data as JSON
     - [x] DELETE /api/v1/settings — soft-delete account
-11. [x] Input validation everywhere — both Pydantic (request) and DB constraints
-12. [ ] HTTPS setup — coordinate with Person 4 (likely nginx reverse proxy with self-signed cert)
+12. [x] Input validation everywhere — both Pydantic (request) and DB constraints
+13. [ ] HTTPS setup — coordinate with Person 4 (likely nginx reverse proxy with self-signed cert)
 
 ## Phase 4 — Polish
 
-13. [ ] Error handling middleware — consistent error response format across all routes
-14. [ ] Rate limiting — if claiming the public API module
-15. [ ] Metrics endpoint — /metrics for Prometheus scraping (coordinate with Person 4)
-16. [x] API documentation — FastAPI generates this automatically at /docs and /redoc
-
-
-## Draft
-- No genres etc from classic track search in Spotify
+14. [x] Error handling middleware — consistent error response format across all routes
+15. [ ] Rate limiting — if claiming the public API module
+16. [ ] Metrics endpoint — /metrics for Prometheus scraping (coordinate with Person 4)
+17. [x] API documentation — FastAPI generates this automatically at /docs and /redoc

@@ -10,11 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from app.db.models import Friendship, User, Block
-
-
-class ErrorCreatingFriendship(Exception):
-    """The insert broke a rule the database enforces: asking yourself, or a user who does not exist."""
-
+from app import errors
 
 def read_friendship(session: Session, a: int, b: int) -> Friendship | None:
     """The friendships row for this pair of users, whichever of the two asked."""
@@ -38,7 +34,7 @@ def create_friendship(session: Session, requester_id: int, addressee_id: int) ->
     except IntegrityError:
         if read_friendship(session, requester_id, addressee_id) is not None:
             return None
-        raise ErrorCreatingFriendship("cannot ask yourself or a user who does not exist") from None
+        raise errors.HTTP_404_NOT_FOUND from None
     return request
 
 
