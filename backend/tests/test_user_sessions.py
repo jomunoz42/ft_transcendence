@@ -1,4 +1,4 @@
-"""Auth ticket 02: the sessions table, verified against real Postgres."""
+"""The sessions table, verified against real Postgres."""
 
 import datetime
 

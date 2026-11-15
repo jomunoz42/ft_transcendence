@@ -51,3 +51,13 @@ Blocking twice is fine and answers `"blocked"` again. Unblocking makes them
 strangers: either of them can send a new request.
 
 Not available yet: a list of the users I blocked.
+
+## Where the code lives
+
+- `backend/app/routes/v1/friendships.py`: the rule functions (what is allowed)
+  and the HTTP handlers that call them. Only the handlers commit.
+- `backend/app/crud/friendship.py`: queries with logic of their own (find the
+  pair's row from either side, list friends, list pending requests). They read
+  and write rows but never decide what is allowed, and never commit.
+- Plain `session.add`, `session.delete` and status changes stay inline in the
+  rule functions; a one-line crud wrapper around them adds nothing.

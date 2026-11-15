@@ -1,4 +1,4 @@
-"""Tests for the session lifecycle: start, look up, end (auth issue #12)."""
+"""The session lifecycle: start, look up, end."""
 
 import datetime
 

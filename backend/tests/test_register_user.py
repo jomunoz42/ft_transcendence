@@ -1,7 +1,4 @@
-"""Tests for registering a user (auth issue #11).
-
-They call register_user the way the register route will, against real Postgres.
-"""
+"""Registering a user with register_user, against real Postgres."""
 
 import pytest
 from fastapi import HTTPException

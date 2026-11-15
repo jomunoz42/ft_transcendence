@@ -1,9 +1,4 @@
-"""Friendship and block queries: read and write rows, never decide what is allowed.
-
-Only queries with logic of their own live here. Plain `session.add`,
-`session.delete` and status changes stay inline in the route's rule functions.
-Nothing here commits.
-"""
+"""Friendship and block queries: read and write rows, never decide what is allowed."""
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
