@@ -66,6 +66,15 @@ def is_blocked(session: Session, a: int, b: int) -> bool:
     )
     return block is not None
 
+def list_blocked(session: Session, user_id: int) -> list[User]:
+    """Users I blocked, never users who blocked me, deleted accounts left out, ordered by id."""
+    return list(session.scalars(
+        select(User)
+        .join(Block, and_(Block.blocker_id == user_id, Block.blocked_id == User.id))
+        .where(User.deleted_at.is_(None))
+        .order_by(User.id)
+    ))
+
 def list_pending(session: Session, user_id: int) -> tuple[list[User], list[User]]:
     """Pending requests as (users who asked me, users I asked), deleted accounts left out, each ordered by id."""
     other = aliased(User)

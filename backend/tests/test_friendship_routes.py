@@ -26,6 +26,7 @@ def alice_and_bob(client):
 
 def test_friend_routes_need_a_login(client):
     assert client.get(FRIENDS).status_code == 401
+    assert client.get(f"{FRIENDS}/blocks").status_code == 401
 
 
 def test_a_request_shows_up_on_both_sides_and_accepting_makes_friends(client, alice_and_bob):
@@ -125,3 +126,14 @@ def test_acting_on_myself_is_refused(client, alice_and_bob, method, action):
     path = f"{FRIENDS}/{action}/{alice}" if action else f"{FRIENDS}/{alice}"
 
     assert getattr(client, method)(path).status_code == 422
+
+
+def test_blocks_lists_who_I_blocked_and_hides_it_from_them(client, alice_and_bob):
+    alice, bob = alice_and_bob
+    assert client.get(f"{FRIENDS}/blocks").json() == []
+
+    client.post(f"{FRIENDS}/block/{bob}")
+
+    assert client.get(f"{FRIENDS}/blocks").json() == [{"id": bob, "display_name": "Bob"}]
+    login_as(client, "Bob")
+    assert client.get(f"{FRIENDS}/blocks").json() == []

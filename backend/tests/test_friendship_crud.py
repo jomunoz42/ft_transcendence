@@ -5,7 +5,7 @@ import datetime
 import pytest
 
 from fastapi import HTTPException
-from app.crud.friendship import create_friendship, is_blocked, list_pending
+from app.crud.friendship import create_friendship, is_blocked, list_blocked, list_pending
 from app.db.models import Block, Friendship, User
 
 
@@ -98,3 +98,28 @@ def test_create_friendship_refuses_asking_yourself(session):
     with pytest.raises(HTTPException) as exc:
         create_friendship(session, alice.id, alice.id)
     assert exc.value.status_code == 404
+
+
+def test_list_blocked_shows_only_users_I_blocked_ordered_by_id(session):
+    alice = make_user(session, "alice@myplaylist.test")
+    bob = make_user(session, "bob@myplaylist.test")
+    carol = make_user(session, "carol@myplaylist.test")
+    dave = make_user(session, "dave@myplaylist.test")
+    session.add_all([
+        Block(blocker_id=alice.id, blocked_id=dave.id),
+        Block(blocker_id=alice.id, blocked_id=bob.id),
+        Block(blocker_id=carol.id, blocked_id=alice.id),
+    ])
+    session.flush()
+
+    assert ids(list_blocked(session, alice.id)) == [bob.id, dave.id]
+
+
+def test_list_blocked_leaves_out_deleted_accounts(session):
+    alice = make_user(session, "alice@myplaylist.test")
+    erin = make_user(session, "erin@myplaylist.test")
+    session.add(Block(blocker_id=alice.id, blocked_id=erin.id))
+    erin.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    session.flush()
+
+    assert list_blocked(session, alice.id) == []
