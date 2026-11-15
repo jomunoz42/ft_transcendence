@@ -20,7 +20,7 @@ def read_friendship(session: Session, a: int, b: int) -> Friendship | None:
 
 
 def create_friendship(session: Session, requester_id: int, addressee_id: int) -> Friendship | None:
-    """Insert a pending request; None if the pair's row appeared meanwhile, ErrorCreatingFriendship on a database rule."""
+    """Insert a pending request; None if the pair's row appeared meanwhile, HTTP 404 on a database rule."""
     request = Friendship(requester_id=requester_id, addressee_id=addressee_id)
     session.flush()  # keep: the caller's pending errors must not be blamed on this insert
     try:
