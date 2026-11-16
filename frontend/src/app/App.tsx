@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from 'react'
 
@@ -37,6 +38,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const [headerNotice, setHeaderNotice] = useState('')
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const presence = useWebSocket(user !== null)
 
@@ -68,6 +71,27 @@ export default function App() {
       return 'light'
     })
   }
+
+  function showHeaderWarning(message: string) {
+    setHeaderNotice(message)
+
+    if (noticeTimerRef.current !== null) {
+      clearTimeout(noticeTimerRef.current)
+    }
+
+    noticeTimerRef.current = setTimeout(() => {
+      setHeaderNotice('')
+      noticeTimerRef.current = null
+    }, 5000)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current !== null) {
+        clearTimeout(noticeTimerRef.current)
+      }
+    }
+  }, [])
 
   async function handleLogout() {
     await api<void>('/api/v1/auth/logout', {
@@ -188,6 +212,7 @@ export default function App() {
       <FriendsPage
         user={user}
         presence={presence}
+        onWarning={showHeaderWarning}
       />
     )
   } else if (path === '/settings') {
@@ -215,6 +240,7 @@ export default function App() {
       path={path}
       theme={theme}
       user={user}
+      headerNotice={headerNotice}
       onToggleTheme={handleToggleTheme}
       onLogout={handleLogout}
     >
