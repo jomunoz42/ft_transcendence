@@ -4,7 +4,7 @@ import datetime
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, or_, select
 
 from app.db.models import Block, Friendship, User
 from app.routes.v1.friendships import (
@@ -158,8 +158,14 @@ def test_a_blocked_user_cannot_decline_and_is_not_told_why(session):
 
 # cancel_request
 
-def friendship_rows(session):
-    return session.scalar(select(func.count()).select_from(Friendship))
+def friendship_rows(session, *users):
+    """Count friendship rows touching any of `users`, so rows left by `make sample` never leak in."""
+    ids = [u.id for u in users]
+    return session.scalar(
+        select(func.count()).select_from(Friendship).where(
+            or_(Friendship.requester_id.in_(ids), Friendship.addressee_id.in_(ids))
+        )
+    )
 
 
 def test_cancelling_my_request_deletes_it_and_either_of_us_can_ask_again(session):
@@ -169,7 +175,7 @@ def test_cancelling_my_request_deletes_it_and_either_of_us_can_ask_again(session
 
     cancel_request(session, alice.id, bob.id)
 
-    assert friendship_rows(session) == 0
+    assert friendship_rows(session, alice, bob) == 0
     assert send_request(session, bob.id, alice.id).status == "pending"
 
 
@@ -205,7 +211,7 @@ def test_a_blocked_user_cannot_cancel_and_is_not_told_why(session):
     with pytest.raises(HTTPException) as exc:
         cancel_request(session, bob.id, alice.id)
     assert exc.value.status_code == 404
-    assert friendship_rows(session) == 1
+    assert friendship_rows(session, alice, bob) == 1
 
 
 # remove_friend
@@ -219,7 +225,7 @@ def test_either_friend_can_remove_and_then_either_can_ask_again(session, remover
 
     remove_friend(session, me.id, them.id)
 
-    assert friendship_rows(session) == 0
+    assert friendship_rows(session, alice, bob) == 0
     assert send_request(session, them.id, me.id).status == "pending"
 
 
@@ -233,7 +239,7 @@ def test_there_is_nothing_to_remove_without_a_friendship(session, status):
     with pytest.raises(HTTPException) as exc:
         remove_friend(session, alice.id, bob.id)
     assert exc.value.status_code == 404
-    assert friendship_rows(session) == (0 if status is None else 1)
+    assert friendship_rows(session, alice, bob) == (0 if status is None else 1)
 
 
 def test_a_blocked_user_cannot_remove_and_is_not_told_why(session):
@@ -245,13 +251,19 @@ def test_a_blocked_user_cannot_remove_and_is_not_told_why(session):
     with pytest.raises(HTTPException) as exc:
         remove_friend(session, bob.id, alice.id)
     assert exc.value.status_code == 404
-    assert friendship_rows(session) == 1
+    assert friendship_rows(session, alice, bob) == 1
 
 
 # block_user
 
-def block_rows(session):
-    return session.scalar(select(func.count()).select_from(Block))
+def block_rows(session, *users):
+    """Count block rows touching any of `users`, so rows left by `make sample` never leak in."""
+    ids = [u.id for u in users]
+    return session.scalar(
+        select(func.count()).select_from(Block).where(
+            or_(Block.blocker_id.in_(ids), Block.blocked_id.in_(ids))
+        )
+    )
 
 
 def test_blocking_a_stranger_stores_the_block(session):
@@ -271,7 +283,7 @@ def test_blocking_deletes_the_pair_friendship_row(session, status):
 
     block_user(session, alice.id, bob.id)
 
-    assert friendship_rows(session) == 0
+    assert friendship_rows(session, alice, bob) == 0
     assert session.get(Block, (alice.id, bob.id)) is not None
 
 
@@ -282,7 +294,7 @@ def test_blocking_twice_changes_nothing(session):
 
     block_user(session, alice.id, bob.id)
 
-    assert block_rows(session) == 1
+    assert block_rows(session, alice, bob) == 1
 
 
 def test_a_block_written_between_the_check_and_the_insert_changes_nothing(session, monkeypatch):
@@ -302,7 +314,7 @@ def test_a_block_written_between_the_check_and_the_insert_changes_nothing(sessio
 
     block_user(session, alice.id, bob.id)
 
-    assert block_rows(session) == 1
+    assert block_rows(session, alice, bob) == 1
 
 
 def test_the_blocked_user_can_block_back(session):
@@ -312,7 +324,7 @@ def test_the_blocked_user_can_block_back(session):
 
     block_user(session, bob.id, alice.id)
 
-    assert block_rows(session) == 2
+    assert block_rows(session, alice, bob) == 2
 
 
 @pytest.mark.parametrize("target", ["unknown", "deleted"])
@@ -326,7 +338,7 @@ def test_blocking_a_user_who_does_not_exist_is_not_found(session, target):
     with pytest.raises(HTTPException) as exc:
         block_user(session, alice.id, them_id)
     assert exc.value.status_code == 404
-    assert block_rows(session) == 0
+    assert block_rows(session, alice, bob) == 0
 
 
 def test_i_cannot_block_myself(session):
@@ -335,7 +347,7 @@ def test_i_cannot_block_myself(session):
     with pytest.raises(HTTPException) as exc:
         block_user(session, alice.id, alice.id)
     assert exc.value.status_code == 409
-    assert block_rows(session) == 0
+    assert block_rows(session, alice) == 0
 
 
 # unblock_user
@@ -348,8 +360,8 @@ def test_unblocking_lifts_my_block_and_we_are_strangers_again(session):
 
     unblock_user(session, alice.id, bob.id)
 
-    assert block_rows(session) == 0
-    assert friendship_rows(session) == 0
+    assert block_rows(session, alice, bob) == 0
+    assert friendship_rows(session, alice, bob) == 0
     assert send_request(session, bob.id, alice.id).status == "pending"
 
 
@@ -370,7 +382,7 @@ def test_only_the_blocker_can_lift_a_block(session):
     with pytest.raises(HTTPException) as exc:
         unblock_user(session, bob.id, alice.id)
     assert exc.value.status_code == 404
-    assert block_rows(session) == 1
+    assert block_rows(session, alice, bob) == 1
 
 
 def test_unblocking_leaves_the_other_users_block_in_place(session):
@@ -413,9 +425,9 @@ def test_every_action_on_a_deleted_account_is_not_found_and_changes_nothing(sess
         add_row(session)
     bob.deleted_at = datetime.datetime.now(datetime.timezone.utc)
     session.flush()
-    before = (friendship_rows(session), block_rows(session), session.scalar(select(Friendship.status)))
+    before = (friendship_rows(session, alice, bob), block_rows(session, alice, bob), session.scalar(select(Friendship.status).where(Friendship.requester_id.in_([alice.id, bob.id]))))
 
     with pytest.raises(HTTPException) as exc:
         rule(session, alice.id, bob.id)
     assert exc.value.status_code == 404
-    assert (friendship_rows(session), block_rows(session), session.scalar(select(Friendship.status))) == before
+    assert (friendship_rows(session, alice, bob), block_rows(session, alice, bob), session.scalar(select(Friendship.status).where(Friendship.requester_id.in_([alice.id, bob.id])))) == before
