@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.current_user import current_user
-from app.crud.friendship import create_friendship, list_friends, list_pending, read_friendship
+from app.crud.friendship import create_friendship, list_blocked, list_friends, list_pending, read_friendship
 from app import errors
 from app.db import get_session
 from app.db.models import Block, Friendship, User
@@ -142,6 +142,11 @@ def requests(me: User = Depends(current_user), session: Session = Depends(get_se
         "incoming": [{"id": user.id, "display_name": user.profile.display_name} for user in incoming],
         "outgoing": [{"id": user.id, "display_name": user.profile.display_name} for user in outgoing],
     }
+
+@router.get("/blocks")
+def blocks(me: User = Depends(current_user), session: Session = Depends(get_session)) -> list[dict]:
+    """Users I blocked as id and display name; never shows who blocked me."""
+    return [{"id": user.id, "display_name": user.profile.display_name} for user in list_blocked(session, me.id)]
 
 @router.post("/request/{them_id}")
 def request(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:

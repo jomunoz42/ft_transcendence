@@ -20,7 +20,7 @@ def read_friendship(session: Session, a: int, b: int) -> Friendship | None:
 
 
 def create_friendship(session: Session, requester_id: int, addressee_id: int) -> Friendship | None:
-    """Insert a pending request; None if the pair's row appeared meanwhile, ErrorCreatingFriendship on a database rule."""
+    """Insert a pending request; None if the pair's row appeared meanwhile, HTTP 404 on a database rule."""
     request = Friendship(requester_id=requester_id, addressee_id=addressee_id)
     session.flush()  # keep: the caller's pending errors must not be blamed on this insert
     try:
@@ -65,6 +65,15 @@ def is_blocked(session: Session, a: int, b: int) -> bool:
         )
     )
     return block is not None
+
+def list_blocked(session: Session, user_id: int) -> list[User]:
+    """Users I blocked, never users who blocked me, deleted accounts left out, ordered by id."""
+    return list(session.scalars(
+        select(User)
+        .join(Block, and_(Block.blocker_id == user_id, Block.blocked_id == User.id))
+        .where(User.deleted_at.is_(None))
+        .order_by(User.id)
+    ))
 
 def list_pending(session: Session, user_id: int) -> tuple[list[User], list[User]]:
     """Pending requests as (users who asked me, users I asked), deleted accounts left out, each ordered by id."""
