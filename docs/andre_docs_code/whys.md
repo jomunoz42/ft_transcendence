@@ -24,6 +24,8 @@ that is not here? Ask André, and the answer gets added.
 - [Why does a failed login for an unknown email still hash a password?](#why-does-a-failed-login-for-an-unknown-email-still-hash-a-password)
 - [Why a session cookie and not a JWT?](#why-a-session-cookie-and-not-a-jwt)
 - [Why does `start_session` send the lifetime as seconds?](#why-does-start_session-send-the-lifetime-as-seconds)
+- [Why can a 42 user have no password?](#why-can-a-42-user-have-no-password)
+- [Why are 42 accounts linked by id and not by email?](#why-are-42-accounts-linked-by-id-and-not-by-email)
 
 ---
 
@@ -234,3 +236,24 @@ So a session lasts exactly 168 hours, whatever timezone the database uses.
 - `make_interval(secs => 604800)` is a fixed length of time, so the clock
   change cannot stretch it. The test forces a timezone whose clocks jump during
   that week, so it fails every time if this goes back to days.
+
+### Why can a 42 user have no password?
+
+42 checks the password, not us, so we never have one to store.
+
+- `password_hash` is NULL for these users. A random unusable hash would keep
+  the column NOT NULL, but it would claim a password that does not exist.
+- `authenticate` treats NULL like an unknown email: same 401, same timing.
+- The migration's downgrade fails while any such user exists: it cannot invent
+  a password for them.
+- We keep no 42 access token. It is used once to read `/v2/me`, then dropped,
+  so it cannot leak. The login itself is our normal session cookie.
+
+### Why are 42 accounts linked by id and not by email?
+
+The 42 numeric id never changes; the email can.
+
+- `oauth_accounts` keys on `(provider, provider_id)`, so a changed 42 email
+  still finds the same user, and Google can reuse the table later.
+- Matching by email would log anyone whose 42 email equals a password
+  account's email into that account. So that case is a 409, and no link is made.
