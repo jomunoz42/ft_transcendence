@@ -1,18 +1,41 @@
 import pytest
+from functools import cache
 from pydantic import BaseModel
 from typing import Optional
 from fastapi.testclient import TestClient
 from fastapi import Depends
 from app.main import app
-from app.db.models import Song, Top10Entry
+from app.db.models import Profile, Song, Top10Entry, User
 from app.db import SessionLocal
 
 client = TestClient(app, base_url="https://testserver")
 
 COOKIE_NAME = "myplaylist_session"
+VICTOR_EMAIL = "victor@edwed.com"
+
+@cache
+def _luna_id() -> int:
+	"""Return Luna's user id. Looked up by display name because ids change on every reseed."""
+	with SessionLocal() as session:
+		user_id = session.query(Profile.user_id).filter(Profile.display_name == "Luna").scalar()
+	assert user_id is not None, "seed user Luna is missing, run make sample"
+	return user_id
+
+@cache
+def _victor_id() -> int:
+	"""Return the user id of Victor, the account these tests log in as."""
+	with SessionLocal() as session:
+		return session.query(User.id).filter(User.email == VICTOR_EMAIL).scalar()
+
+def _delete_victor_top10():
+	"""Delete Victor's top 10 and the song the tests create, so a run never depends on the previous one."""
+	with SessionLocal() as session:
+		session.query(Top10Entry).filter(Top10Entry.user_id == _victor_id()).delete()
+		session.query(Song).filter(Song.title == "Hello", Song.artist == "bonjour").delete()
+		session.commit()
 
 def _login():
-	res = client.post("/api/v1/auth/login", json={"email": "victor@edwed.com", "password": "wefgvwervrevrevver"})
+	res = client.post("/api/v1/auth/login", json={"email": VICTOR_EMAIL, "password": "wefgvwervrevrevver"})
 	token = res.cookies.get(COOKIE_NAME)
 	if token:
 		client.cookies.set(COOKIE_NAME, token)
@@ -23,8 +46,9 @@ def _logout():
 	client.cookies.delete(COOKIE_NAME)
 
 @pytest.fixture(scope="module", autouse=True)                                
-def login_once():                                                            
-	_login()                                                                 
+def login_once():
+	_delete_victor_top10()
+	_login()                                                              
 	yield                                                                    
 	_logout()
 
@@ -67,31 +91,31 @@ tests = [
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/2', method='GET'),
+		Req(uri='/api/v1/profiles/{luna}', method='GET'),
 		Exp(status_code=200, body={"avatar_url": None, "display_name": "Luna", "bio": "Collecting books, playlists, and good memories.", "comments": [], "reactions": []}),
 	),
 	(
-		Req(uri='/api/v1/profiles/2/comments', method='POST', body={"body": "Hello"}),
+		Req(uri='/api/v1/profiles/{luna}/comments', method='POST', body={"body": "Hello"}),
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/2/comments/latest', method='POST', body={"body": "Bonjour"}),
+		Req(uri='/api/v1/profiles/{luna}/comments/latest', method='POST', body={"body": "Bonjour"}),
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/2/reactions', method='GET'),
+		Req(uri='/api/v1/profiles/{luna}/reactions', method='GET'),
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/2/reactions', method='POST', body={"reaction": "like"}),
+		Req(uri='/api/v1/profiles/{luna}/reactions', method='POST', body={"reaction": "like"}),
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/2/reactions', method='POST', body={"reaction": "dislike"}),
+		Req(uri='/api/v1/profiles/{luna}/reactions', method='POST', body={"reaction": "dislike"}),
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/2/reactions', method='POST', body={"reaction": "bonjour"}),
+		Req(uri='/api/v1/profiles/{luna}/reactions', method='POST', body={"reaction": "bonjour"}),
 		Exp(status_code=422),
 	),
 	(
@@ -133,12 +157,13 @@ tests = [
 ]
 
 def _do_request(session: TestClient, req: Req, exp: Exp):
+	uri = req.uri.format(luna=_luna_id())
 	if (req.method == 'GET'):
-		res = session.get(url=req.uri)
+		res = session.get(url=uri)
 	if (req.method == 'POST'):
-		res = session.post(url=req.uri, json=req.body)
+		res = session.post(url=uri, json=req.body)
 	if (req.method == 'DELETE'):
-		res = session.delete(url=req.uri)
+		res = session.delete(url=uri)
 	assert res.status_code == exp.status_code
 	if (exp.body is not None and str(res.status_code).startswith("2")):
 		if isinstance(exp.body, dict):
@@ -170,27 +195,23 @@ def test_auth():
 
 def _clean():
 	_login()
+	luna = f"/api/v1/profiles/{_luna_id()}"
 
-	res = client.get("/api/v1/profiles/2")
+	victor = _victor_id()
 
-	comments = res.json().get("comments")
-	for c in comments:
-		client.delete("/api/v1/profiles/2/comments/" + str(c.get("id")))
+	res = client.get(f"{luna}/comments")
+	assert res.status_code == 200, f"GET {luna}/comments returned {res.status_code}"
+	for c in res.json():
+		if c.get("author_id") == victor:
+			client.delete(f"{luna}/comments/" + str(c.get("id")))
+	client.delete(f"{luna}/reactions")
 
-	reactions = res.json().get("comments")
-	for r in reactions:
-		client.delete("/api/v1/profiles/2/reactions")
-
-	res = client.get("/api/v1/profiles/2")
-	comments = res.json().get("comments")
-	reactions = res.json().get("reactions")
-	if (len(comments) > 0 or len(reactions) > 0):
+	comments = client.get(f"{luna}/comments").json()
+	reactions = client.get(f"{luna}/reactions").json()
+	if any(x.get("author_id") == victor for x in comments + reactions):
 		return 0
 
-	with SessionLocal() as session:
-		session.query(Top10Entry).delete()
-		session.query(Song).delete()
-		session.commit()
+	_delete_victor_top10()
 
 	return 1
 
