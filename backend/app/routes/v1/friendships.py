@@ -9,6 +9,7 @@ from app.crud.friendship import create_friendship, list_friends, list_pending, r
 from app import errors
 from app.db import get_session
 from app.db.models import Block, Friendship, User
+from app.realtime.notifications import FriendsNotifier, get_friends_notifier
 
 def check_exists(session: Session, them_id: int) -> None:
     """Raise 404 if they never existed or deleted their account."""
@@ -143,21 +144,24 @@ def requests(me: User = Depends(current_user), session: Session = Depends(get_se
     }
 
 @router.post("/request/{them_id}")
-def request(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+def request(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:
     """Ask them to be friends; 200 with the resulting status, 422 on myself, 404 if there is nothing to ask, 409 if a rule refuses."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     friendship = send_request(session, me.id, them_id)
     session.commit()
+    if friendship.status == "accepted":
+        notify_friends(me.id, them_id)
     return {"status": friendship.status}
 
 @router.post("/accept/{them_id}")
-def accept(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+def accept(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:
     """Accept the pending request they sent me; 200 accepted, 422 on myself, 404 if they sent me none, 409 if I blocked them."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     accept_request(session, me.id, them_id)
     session.commit()
+    notify_friends(me.id, them_id)
     return {"status": "accepted"}
 
 @router.post("/decline/{them_id}")
@@ -179,21 +183,23 @@ def cancel(them_id: int, me: User = Depends(current_user), session: Session = De
     return {"status": "cancelled"}
 
 @router.delete("/{them_id}")
-def remove(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+def remove(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:
     """End our friendship from either side; 200 removed, 422 on myself, 404 if we are not friends, 409 if I blocked them."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     remove_friend(session, me.id, them_id)
     session.commit()
+    notify_friends(me.id, them_id)
     return {"status": "removed"}
 
 @router.post("/block/{them_id}")
-def block(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+def block(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:
     """Block them and drop any friendship between us, again is a no-op; 200 blocked, 422 on myself, 404 if they do not exist."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
     block_user(session, me.id, them_id)
     session.commit()
+    notify_friends(me.id, them_id)
     return {"status": "blocked"}
 
 @router.post("/unblock/{them_id}")
