@@ -23,7 +23,7 @@ def authenticate(session: Session, email: str, password: str) -> User:
         .with_for_update()
     ).one_or_none()
     user, locked = row if row else (None, False)
-    if user is None or locked:
+    if user is None or locked or user.password_hash is None:
         verify_password(password, _DUMMY_HASH)  # keep: every refusal must take as long as a wrong password
         raise errors.HTTP_401_INVALID_CREDENTIALS
     if not verify_password(password, user.password_hash):
