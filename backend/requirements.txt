@@ -5,6 +5,7 @@ alembic
 psycopg2-binary
 argon2-cffi
 requests
+prometheus-client
 
 # test dependencies
 pytest

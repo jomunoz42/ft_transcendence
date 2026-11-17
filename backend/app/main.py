@@ -18,6 +18,8 @@ from app.db import get_session
 from app.realtime.config import allowed_websocket_origins
 from app.realtime.manager import ConnectionManager
 from app.realtime.presence import DB_TIMEOUT
+from app.monitoring.middleware import PrometheusMiddleware
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,8 @@ async def lifespan(app):
         await manager.stop()
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(PrometheusMiddleware)
 
 ALLOWED_WEBSOCKET_ORIGINS = allowed_websocket_origins()
 
@@ -44,6 +48,13 @@ from app.routes.v1.friendships import router as friendships
 app.include_router(friendships, prefix="/api/v1/friends")
 from app.routes.v1.songs import router as songs
 app.include_router(songs, prefix="/api/v1/songs")
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 @app.get("/health")
 def health(response: Response, session: Session = Depends(get_session)):
