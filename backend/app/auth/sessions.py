@@ -7,9 +7,11 @@ import datetime
 import hashlib
 import secrets
 
+from fastapi import Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.auth.constants import SESSION_COOKIE_NAME
 from app.db.models import User, UserSession
 
 SESSION_LIFETIME = datetime.timedelta(days=7)
@@ -34,6 +36,18 @@ def start_session(session: Session, user: User) -> str:
     session.add(UserSession(user_id=user.id, token_hash=_hash(token), expires_at=func.now() + lifetime))
     session.flush()
     return token
+
+
+def set_session_cookie(response: Response, token: str) -> None:
+    """Put the session token on the response as the login cookie: httponly, secure, samesite=lax, lasting SESSION_LIFETIME."""
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        max_age=int(SESSION_LIFETIME.total_seconds()),
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
 
 
 def user_for_token(session: Session, token: str | None) -> User | None:
