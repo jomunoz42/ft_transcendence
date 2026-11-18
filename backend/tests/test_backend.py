@@ -28,10 +28,9 @@ def _victor_id() -> int:
 		return session.query(User.id).filter(User.email == VICTOR_EMAIL).scalar()
 
 def _delete_victor_top10():
-	"""Delete Victor's top 10 and the song the tests create, so a run never depends on the previous one."""
+	"""Delete Victor's top 10 entries so a run never depends on the previous one. Songs are shared between users, so they stay."""
 	with SessionLocal() as session:
 		session.query(Top10Entry).filter(Top10Entry.user_id == _victor_id()).delete()
-		session.query(Song).filter(Song.title == "Hello", Song.artist == "bonjour").delete()
 		session.commit()
 
 def _login():
@@ -217,3 +216,26 @@ def _clean():
 
 def test_cleaning():
 	assert _clean() == 1
+
+def test_cleanup_keeps_a_song_another_user_has_in_top10():
+	"""The cleanup removes only Victor's entries: a shared song in Luna's top 10 survives it."""
+	with SessionLocal() as session:
+		song = session.query(Song).filter(Song.title == "Hello", Song.artist == "bonjour").first()
+		if song is None:
+			song = Song(provider="manual", provider_id="test-hello-bonjour", title="Hello", artist="bonjour")
+			session.add(song)
+			session.flush()
+		used = {r for (r,) in session.query(Top10Entry.rank).filter(Top10Entry.user_id == _luna_id())}
+		rank = next(r for r in range(1, 11) if r not in used)
+		entry = Top10Entry(user_id=_luna_id(), song_id=song.id, rank=rank)
+		session.add(entry)
+		session.commit()
+		entry_id = entry.id
+	try:
+		_delete_victor_top10()
+		with SessionLocal() as session:
+			assert session.get(Top10Entry, entry_id) is not None
+	finally:
+		with SessionLocal() as session:
+			session.query(Top10Entry).filter(Top10Entry.id == entry_id).delete()
+			session.commit()
