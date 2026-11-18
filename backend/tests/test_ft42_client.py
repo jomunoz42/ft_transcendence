@@ -15,16 +15,16 @@ def ft42_env(monkeypatch):
     monkeypatch.setenv("FT42_REDIRECT_URI", "https://localhost/api/v1/auth/42/callback")
 
 
-def fake_42(token_status=200, me_status=200):
+def fake_42(token_status=200, me_status=200, me=ME, token={"access_token": "the-access-token"}):
     """An httpx client whose requests go to a fake 42 that records them."""
     seen = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         if request.url.path == "/oauth/token":
-            return httpx.Response(token_status, json={"access_token": "the-access-token"})
+            return httpx.Response(token_status, json=token)
         if request.url.path == "/v2/me":
-            return httpx.Response(me_status, json=ME)
+            return httpx.Response(me_status, json=me)
         return httpx.Response(404)
 
     return httpx.Client(transport=httpx.MockTransport(handler)), seen
@@ -60,6 +60,34 @@ def test_a_refusal_from_42_raises_ft42_error(token_status, me_status):
 
     with pytest.raises(Ft42Error):
         profile_from_code("the-code", http)
+
+
+@pytest.mark.parametrize(
+    "token, me",
+    [
+        (["not", "an", "object"], ME),
+        ({}, ME),
+        ({"access_token": "the-access-token"}, ["not", "an", "object"]),
+        ({"access_token": "the-access-token"}, {"login": "alencart", "email": "a@b.fr"}),
+        ({"access_token": "the-access-token"}, {**ME, "id": "4242"}),
+        ({"access_token": "the-access-token"}, {**ME, "id": True}),
+        ({"access_token": "the-access-token"}, {**ME, "login": None}),
+        ({"access_token": "the-access-token"}, {**ME, "login": ""}),
+        ({"access_token": "the-access-token"}, {**ME, "login": "al\x00encart"}),
+        ({"access_token": "the-access-token"}, {**ME, "email": 123}),
+    ],
+)
+def test_a_malformed_answer_from_42_raises_ft42_error(token, me):
+    http, _ = fake_42(token=token, me=me)
+
+    with pytest.raises(Ft42Error):
+        profile_from_code("the-code", http)
+
+
+def test_a_profile_without_an_email_is_still_returned_for_the_login_to_refuse():
+    http, _ = fake_42(me={**ME, "email": None})
+
+    assert profile_from_code("the-code", http)["email"] is None
 
 
 def test_42_being_unreachable_raises_ft42_error():

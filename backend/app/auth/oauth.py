@@ -5,6 +5,7 @@ The route layer calls this and commits; this module only flushes.
 
 import secrets
 
+from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ from app.db.models import OAuthAccount, Profile, User
 from app import errors
 
 PROVIDER_42 = "42"
+HTTP_403_ACCOUNT_DELETED = HTTPException(status.HTTP_403_FORBIDDEN, "Account deleted")
 
 
 def new_state() -> str:
@@ -22,13 +24,15 @@ def new_state() -> str:
 
 def state_matches(cookie: str | None, query: str | None) -> bool:
     """True only when both states are present and equal; compared in constant time."""
-    return bool(cookie and query) and secrets.compare_digest(cookie, query)
+    return bool(cookie and query) and secrets.compare_digest(cookie.encode(), query.encode())
 
 
 def login_with_42(session: Session, profile: dict) -> User:
-    """The local user for a 42 profile (`id`, `login`, `email` from /v2/me), created without a password on first login; 422 if the email is missing or invalid, 409 if a password account has it. Never commits."""
+    """The local user for a 42 profile (`id`, `login`, `email` from /v2/me), created without a password on first login; 403 if that user is deleted, 422 if the email is missing or invalid, 409 if a password account has it. Never commits."""
     link = session.get(OAuthAccount, (PROVIDER_42, str(profile["id"])))
     if link is not None:
+        if link.user.deleted_at is not None:
+            raise HTTP_403_ACCOUNT_DELETED
         return link.user
     email = normalize_email(profile.get("email") or "")
     if not _looks_like_email(email):
