@@ -6,7 +6,7 @@ psycopg2-binary
 argon2-cffi
 requests
 prometheus-client
+httpx
 
 # test dependencies
 pytest
-httpx
