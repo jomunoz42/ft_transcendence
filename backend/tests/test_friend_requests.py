@@ -2,7 +2,7 @@
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.db.models import Block, Friendship, User
 from app.routes.v1.friendships import send_request
@@ -15,8 +15,14 @@ def make_user(session, email):
     return user
 
 
-def friendship_rows(session):
-    return session.scalar(select(func.count()).select_from(Friendship))
+def friendship_rows(session, *users):
+    """Count friendship rows touching any of `users`, so rows left by `make sample` never leak in."""
+    ids = [u.id for u in users]
+    return session.scalar(
+        select(func.count()).select_from(Friendship).where(
+            or_(Friendship.requester_id.in_(ids), Friendship.addressee_id.in_(ids))
+        )
+    )
 
 
 def test_asking_a_stranger_creates_a_pending_request(session):
@@ -36,7 +42,7 @@ def test_asking_someone_who_already_asked_you_makes_you_friends(session):
     friendship = send_request(session, bob.id, alice.id)
 
     assert friendship.status == "accepted"
-    assert friendship_rows(session) == 1
+    assert friendship_rows(session, alice, bob) == 1
 
 
 def test_asking_twice_changes_nothing(session):
@@ -48,7 +54,7 @@ def test_asking_twice_changes_nothing(session):
 
     assert again.id == first.id
     assert again.status == "pending"
-    assert friendship_rows(session) == 1
+    assert friendship_rows(session, alice, bob) == 1
 
 
 def test_asking_an_existing_friend_changes_nothing(session):
@@ -86,7 +92,7 @@ def test_the_person_who_declined_can_ask_back(session):
 
     # Bob now waits for Alice; she is not made his friend without saying yes.
     assert (reopened.requester_id, reopened.addressee_id, reopened.status) == (bob.id, alice.id, "pending")
-    assert friendship_rows(session) == 1
+    assert friendship_rows(session, alice, bob) == 1
 
 
 def test_a_blocked_user_cannot_ask_the_blocker_and_is_not_told_why(session):
@@ -98,7 +104,7 @@ def test_a_blocked_user_cannot_ask_the_blocker_and_is_not_told_why(session):
     with pytest.raises(HTTPException) as exc:
         send_request(session, bob.id, alice.id)
     assert exc.value.status_code == 404
-    assert friendship_rows(session) == 0
+    assert friendship_rows(session, alice, bob) == 0
 
 
 def test_the_blocker_must_unblock_before_asking(session):
@@ -110,7 +116,7 @@ def test_the_blocker_must_unblock_before_asking(session):
     with pytest.raises(HTTPException) as exc:
         send_request(session, alice.id, bob.id)
     assert exc.value.status_code == 409
-    assert friendship_rows(session) == 0
+    assert friendship_rows(session, alice, bob) == 0
 
 
 @pytest.mark.parametrize("addressee", ["self", "unknown"])
