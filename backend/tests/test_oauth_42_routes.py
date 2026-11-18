@@ -1,10 +1,12 @@
 """The 42 login routes under /api/v1/auth/42, called through the real app with the 42 API faked."""
 
+import datetime
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 from app.auth.ft42_client import Ft42Error
+from app.auth.oauth import login_with_42
 from app.auth.registration import register_user
 from app.main import app
 from app.routes.v1.oauth import ft42_profile
@@ -38,7 +40,7 @@ def test_starting_a_42_login_redirects_to_42_with_the_state_kept_in_a_cookie(cli
     }
     assert response.cookies["oauth_state"] == query["state"]
     cookie = response.headers["set-cookie"].lower()
-    assert "httponly" in cookie and "secure" in cookie and "samesite=lax" in cookie and "max-age=120" in cookie
+    assert "httponly" in cookie and "secure" in cookie and "samesite=lax" in cookie and "max-age=600" in cookie
 
 
 def come_back_from_42(client, answer=PROFILE, cookie="the-state", **params):
@@ -76,6 +78,7 @@ def assert_sent_back_to_login_with(client, response, error):
     "case, error",
     [
         ({"error": "access_denied", "code": None}, "oauth_denied"),
+        ({"error": "server_error", "code": None}, "provider_error"),
         ({"state": "another-state"}, "state_mismatch"),
         ({"state": None}, "state_mismatch"),
         ({"cookie": None}, "state_mismatch"),
@@ -88,6 +91,16 @@ def test_a_failed_42_login_sends_the_browser_back_to_login_with_the_reason(clien
     response = come_back_from_42(client, **case)
 
     assert_sent_back_to_login_with(client, response, error)
+
+
+def test_the_42_account_of_a_deleted_user_sends_back_account_deleted(client, session):
+    user = login_with_42(session, PROFILE)
+    user.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    session.commit()
+
+    response = come_back_from_42(client)
+
+    assert_sent_back_to_login_with(client, response, "account_deleted")
 
 
 def test_a_42_email_already_used_by_a_password_account_sends_back_email_taken(client, session):

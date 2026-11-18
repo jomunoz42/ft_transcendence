@@ -1,5 +1,7 @@
 """Logging in with a 42 account through login_with_42, against real Postgres."""
 
+import datetime
+
 import pytest
 from fastapi import HTTPException
 
@@ -41,6 +43,17 @@ def test_a_42_email_already_used_by_a_password_account_is_taken_and_not_linked(s
     assert again.value.status_code == 409
 
 
+def test_logging_in_with_the_42_account_of_a_deleted_user_is_refused(session):
+    profile = {"id": 4242, "login": "alencart", "email": "alencart@student.42.fr"}
+    user = login_with_42(session, profile)
+    user.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    session.flush()
+
+    with pytest.raises(HTTPException) as exc:
+        login_with_42(session, profile)
+    assert exc.value.status_code == 403
+
+
 @pytest.mark.parametrize("email", [None, ""])
 def test_a_42_profile_without_an_email_is_refused(session, email):
     profile = {"id": 4242, "login": "alencart", "email": email}
@@ -78,7 +91,7 @@ def test_the_state_from_the_cookie_matches_the_same_state_from_42():
 
 @pytest.mark.parametrize(
     "cookie, query",
-    [("abc", "abd"), (None, "abc"), ("abc", None), (None, None), ("", "")],
+    [("abc", "abd"), (None, "abc"), ("abc", None), (None, None), ("", ""), ("abc", "é"), ("é", "abc")],
 )
 def test_a_different_or_missing_state_does_not_match(cookie, query):
     assert state_matches(cookie, query) is False
