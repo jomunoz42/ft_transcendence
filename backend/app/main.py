@@ -44,6 +44,10 @@ from app.routes.v1.settings import router as settings
 app.include_router(settings, prefix="/api/v1/settings")
 from app.routes.v1.profiles import router as profiles
 app.include_router(profiles, prefix="/api/v1/profiles")
+from app.routes.v1.comments import router as comments
+app.include_router(comments, prefix="/api/v1/profiles")
+from app.routes.v1.reactions import router as reactions
+app.include_router(reactions, prefix="/api/v1/reactions")
 from app.routes.v1.friendships import router as friendships
 app.include_router(friendships, prefix="/api/v1/friends")
 from app.routes.v1.songs import router as songs

@@ -8,7 +8,7 @@ from app.auth.current_user import current_user
 from app.crud.profile import read_profile, read_profiles, update_profile, ProfileUpdate
 from app.crud.user import read_user
 from app.db import _me_profile
-from app.db.models import User, Top10Entry
+from app.db.models import User
 from app.crud.friendship import are_friends
 from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
 from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
@@ -16,37 +16,10 @@ from app import errors
 
 router = APIRouter()
 
-################################################
-# /profiles
-################################################
-
 @router.get("")
 def get_profiles(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	profiles = read_profiles(session)
 	return profiles
-
-################################################
-# /me
-################################################
-
-@router.get("/me")
-def get_me(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	profile = read_profile(profile_id=current_user.profile.id, session=session)
-	user = read_user(user_id=current_user.id, session=session)
-	if not profile:
-		raise errors.HTTP_404_PROFILE_NOT_FOUND
-	return _me_profile(profile) |\
-		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
-
-@router.post("/me")
-def update_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	user = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
-	session.commit()
-	return user
-
-################################################
-# /{user_id}
-################################################
 
 @router.get("/{user_id}")
 def get_profile(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
@@ -72,66 +45,17 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 		result["reactions"] = profile.user.reactions
 	return result
 
-################################################
-# /{user_id}/comments
-################################################
+@router.get("/me")
+def get_me(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+	profile = read_profile(profile_id=current_user.profile.id, session=session)
+	user = read_user(user_id=current_user.id, session=session)
+	if not profile:
+		raise errors.HTTP_404_PROFILE_NOT_FOUND
+	return _me_profile(profile) |\
+		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
 
-@router.get("/{user_id}/comments")
-def get_comments(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	comments = read_comments(user_id=user_id, session=session, current_user=current_user)
-	return comments
-
-@router.post("/{user_id}/comments")
-def post_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	is_friend = are_friends(session=session, a=user_id, b=current_user.id)
-	# TODO: Add a possibility for non-friend but public top 10 to be commented, unless blocked
-	if not is_friend:
-		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
-	comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user)
+@router.post("/me")
+def edit_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+	profile = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
 	session.commit()
-	return comment
-
-def get_last_comment_id(user_id: int, session: Session, current_user: User) -> int | None:
-	comments = read_comments(user_id=user_id, session=session, current_user=current_user)
-	if len(comments) > 0:
-		return comments[0].id
-
-@router.post("/{user_id}/comments/latest")
-def _update_last_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	comment_id = get_last_comment_id(user_id=user_id, session=session, current_user=current_user)
-	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
-	session.commit()
-	return comment
-
-@router.post("/{user_id}/comments/{comment_id}")
-def _update_comment(comment_id: int, user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
-	session.commit()
-	return comment
-
-@router.delete("/{user_id}/comments/{comment_id}")
-def _delete_comment(comment_id: int, user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	delete_comment(user_id=user_id, comment_id=comment_id, session=session, current_user=current_user)
-	session.commit()
-	return None
-
-################################################
-# /{user_id}/reactions
-################################################
-
-@router.get("/{user_id}/reactions")
-def get_reactions(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	reaction = read_reactions(user_id=user_id, session=session, current_user=current_user)
-	return reaction
-
-@router.post("/{user_id}/reactions")
-def post_reaction(user_id: int, req: ReactionCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	reaction = create_reaction(user_id=user_id, reaction=req.reaction, session=session, current_user=current_user)
-	session.commit()
-	return reaction
-
-@router.delete("/{user_id}/reactions")
-def _delete_reaction(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	reaction = delete_reaction(user_id=user_id, session=session, current_user=current_user)
-	session.commit()
-	return reaction
+	return _me_profile(profile)
