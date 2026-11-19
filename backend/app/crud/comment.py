@@ -17,6 +17,13 @@ def create_comment(user_id: int, body: str, session: Session, current_user: User
 	record_action(session, top10comment, "comment.created", user_id, current_user.id, events)
 	return top10comment
 
+def read_comments(user_id: int, session: Session, current_user: User):
+	if not are_friends(session=session, a=user_id, b=current_user.id):
+		raise errors.HTTP_403_NOT_FRIEND
+	return session.query(Top10Comment).where(
+		Top10Comment.top10_owner_id == user_id
+	).order_by(Top10Comment.updated_at.desc()).all()
+
 def read_comment(comment_id: int, user_id: int, session: Session, current_user: User):
 	return session.query(Top10Comment).where(
 		and_(
@@ -24,13 +31,6 @@ def read_comment(comment_id: int, user_id: int, session: Session, current_user: 
 			Top10Comment.top10_owner_id == user_id,
 		)
 	).first()
-
-def read_comments(user_id: int, session: Session, current_user: User):
-	if not are_friends(session=session, a=user_id, b=current_user.id):
-		raise errors.HTTP_403_NOT_FRIEND
-	return session.query(Top10Comment).where(
-		Top10Comment.top10_owner_id == user_id
-	).order_by(Top10Comment.updated_at.desc()).all()
 
 def update_comment(comment_id: int, user_id: int, body: str, session: Session, current_user: User, events: NotificationEvents | None = None):
 	top10comment = session.query(Top10Comment).where(

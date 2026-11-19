@@ -8,28 +8,16 @@ from app.auth.current_user import current_user
 from app.crud.profile import read_profile, read_profiles, update_profile, ProfileUpdate
 from app.crud.user import read_user
 from app.db import _me_profile
-from app.db.models import User, Top10Entry
+from app.db.models import User
 from app.crud.friendship import are_friends
-from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
-from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
-from app.crud.notification import NotificationEvents
-from app.realtime.notifications import NotificationsNotifier, get_notifications_notifier
 from app import errors
 
 router = APIRouter()
-
-################################################
-# /profiles
-################################################
 
 @router.get("")
 def get_profiles(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	profiles = read_profiles(session)
 	return profiles
-
-################################################
-# /me
-################################################
 
 @router.get("/me")
 def get_me(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
@@ -41,14 +29,10 @@ def get_me(session: Session = Depends(get_session), current_user: User = Depends
 		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
 
 @router.post("/me")
-def update_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	user = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
+def edit_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+	profile = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
 	session.commit()
-	return user
-
-################################################
-# /{user_id}
-################################################
+	return _me_profile(profile)
 
 @router.get("/{user_id}")
 def get_profile(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
@@ -73,79 +57,3 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 		result["comments"] = profile.user.comments
 		result["reactions"] = profile.user.reactions
 	return result
-
-################################################
-# /{user_id}/comments
-################################################
-
-@router.get("/{user_id}/comments")
-def get_comments(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	comments = read_comments(user_id=user_id, session=session, current_user=current_user)
-	return comments
-
-@router.post("/{user_id}/comments")
-def post_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
-	is_friend = are_friends(session=session, a=user_id, b=current_user.id)
-	# TODO: Add a possibility for non-friend but public top 10 to be commented, unless blocked
-	if not is_friend:
-		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
-	events: NotificationEvents = []
-	comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user, events=events)
-	session.commit()
-	notify_notifications(events)
-	return comment
-
-def get_last_comment_id(user_id: int, session: Session, current_user: User) -> int | None:
-	comments = read_comments(user_id=user_id, session=session, current_user=current_user)
-	if len(comments) > 0:
-		return comments[0].id
-
-@router.post("/{user_id}/comments/latest")
-def _update_last_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
-	comment_id = get_last_comment_id(user_id=user_id, session=session, current_user=current_user)
-	events: NotificationEvents = []
-	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user, events=events)
-	session.commit()
-	notify_notifications(events)
-	return comment
-
-@router.post("/{user_id}/comments/{comment_id}")
-def _update_comment(comment_id: int, user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
-	events: NotificationEvents = []
-	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user, events=events)
-	session.commit()
-	notify_notifications(events)
-	return comment
-
-@router.delete("/{user_id}/comments/{comment_id}")
-def _delete_comment(comment_id: int, user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
-	events: NotificationEvents = []
-	delete_comment(user_id=user_id, comment_id=comment_id, session=session, current_user=current_user, events=events)
-	session.commit()
-	notify_notifications(events)
-	return None
-
-################################################
-# /{user_id}/reactions
-################################################
-
-@router.get("/{user_id}/reactions")
-def get_reactions(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	reaction = read_reactions(user_id=user_id, session=session, current_user=current_user)
-	return reaction
-
-@router.post("/{user_id}/reactions")
-def post_reaction(user_id: int, req: ReactionCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
-	events: NotificationEvents = []
-	reaction = create_reaction(user_id=user_id, reaction=req.reaction, session=session, current_user=current_user, events=events)
-	session.commit()
-	notify_notifications(events)
-	return reaction
-
-@router.delete("/{user_id}/reactions")
-def _delete_reaction(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
-	events: NotificationEvents = []
-	reaction = delete_reaction(user_id=user_id, session=session, current_user=current_user, events=events)
-	session.commit()
-	notify_notifications(events)
-	return reaction
