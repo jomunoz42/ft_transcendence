@@ -8,6 +8,8 @@ export type Route =
   | '/settings'
   | '/login'
   | '/register'
+  | '/privacy'
+  | '/terms'
   | `/members/${number}`
 
 type NavigationLink = {
@@ -55,6 +57,10 @@ export function currentPath(): Route {
 
   if (path === '/register') {
     return '/register'
+  }
+
+  if (path === '/privacy' || path === '/terms') {
+    return path
   }
 
   return '/'

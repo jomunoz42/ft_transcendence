@@ -5,6 +5,7 @@ import {
 } from 'react'
 
 import Shell from '../components/Shell.tsx'
+import LegalFooter from '../components/LegalFooter.tsx'
 import {
   ApiError,
   api,
@@ -15,6 +16,8 @@ import FriendsPage from '../pages/FriendsPage.tsx'
 import HomePage from '../pages/HomePage.tsx'
 import MemberProfilePage from '../pages/ProfilePage.tsx'
 import SettingsPage from '../pages/SettingsPage.tsx'
+import PrivacyPage from '../pages/PrivacyPage.tsx'
+import TermsPage from '../pages/TermsPage.tsx'
 import { useWebSocket } from '../websocket/useWebSocket.ts'
 import {
   currentPath,
@@ -133,7 +136,7 @@ export default function App() {
       return
     }
 
-    if (path === '/register') {
+    if (path === '/register' || path === '/privacy' || path === '/terms') {
       return
     }
 
@@ -191,12 +194,26 @@ export default function App() {
     )
   }
 
+  if (path === '/privacy' || path === '/terms') {
+    return (
+      <div className="legal-public-layout">
+        <main id="main-content">
+          {path === '/privacy' ? <PrivacyPage /> : <TermsPage />}
+        </main>
+        <LegalFooter />
+      </div>
+    )
+  }
+
   if (user === null || path === '/login' || path === '/register') {
     return (
-      <AuthPage
-        register={path === '/register'}
-        onAuthenticated={handleAuthenticated}
-      />
+      <div className="auth-with-legal-footer">
+        <AuthPage
+          register={path === '/register'}
+          onAuthenticated={handleAuthenticated}
+        />
+        <LegalFooter />
+      </div>
     )
   }
 
