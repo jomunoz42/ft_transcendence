@@ -8,6 +8,7 @@ import moonIcon from '../assets/icons/moonIcon.svg'
 import sunIcon from '../assets/icons/sunIcon.svg'
 import type { User } from '../lib/api.ts'
 import Sidebar from './Sidebar.tsx'
+import LegalFooter from './LegalFooter.tsx'
 
 type Theme = 'light' | 'dark'
 
@@ -113,6 +114,7 @@ export default function Shell({
         >
           {children}
         </main>
+        <LegalFooter />
       </div>
     </div>
   )
