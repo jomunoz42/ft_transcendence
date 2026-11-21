@@ -1,0 +1,65 @@
+.legal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 20px;
+  padding: 18px 24px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legal-footer a,
+.legal-document a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legal-footer a:focus-visible,
+.legal-document a:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+.legal-document {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+  color: var(--ink);
+  line-height: 1.65;
+}
+
+.legal-document h1 {
+  margin: 0 0 20px;
+  font-size: clamp(24px, 4vw, 34px);
+}
+
+.legal-document h2 {
+  margin: 26px 0 8px;
+  font-size: 18px;
+}
+
+.legal-document p {
+  margin: 0 0 14px;
+}
+
+.legal-public-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.legal-public-layout main {
+  flex: 1;
+}
+
+.auth-with-legal-footer {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-with-legal-footer .auth-layout {
+  flex: 1;
+  min-height: 0;
+}
