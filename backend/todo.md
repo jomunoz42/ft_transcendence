@@ -17,7 +17,7 @@
 4. Implement core CRUD routes
    - [x] GET/POST /api/v1/profiles/me — view/edit own profile
    - [x] GET /api/v1/profiles/{user_id} — view someone's profile
-   - [ ] Manage own Top 10 (via profile update endpoint)
+   - [x] Manage own Top 10 (dedicated top10 CRUD + routes)
    - [x] View someone's Top 10 (via profile endpoint, respecting visibility/friendship)
 
 ## Phase 2 — Social features
@@ -45,9 +45,11 @@
 ## Phase 3 — Bugs & PR fixes
 
 9. Fix top10 UniqueViolation
-   - [ ] Extract top10 logic out of `update_profile`
-   - [ ] Delete old entries before inserting new ones (avoid unique constraint on `user_id, rank`)
-   - [ ] Decide return behavior: 200 replace or 400 reject on re-post
+   - [x] Extract top10 logic out of `update_profile` into `crud/top10.py` + `routes/v1/top10s.py`
+   - [x] Individual add/update/delete instead of bulk replace (no more constraint violations)
+   - [x] Rank update swaps entries, duplicate song/rank returns 409
+   - [x] Songs only created from Spotify search data (no manual), looked up by `provider_id`
+   - [x] Fixed `/me` route ordering in `profiles.py` (`/me` before `/{user_id}`)
 10. Security fixes (from PR review)
     - [x] POST /api/v1/settings — return `_me(user)` not raw User (was leaking password_hash)
     - [x] POST /api/v1/profiles/me — return `_me_profile(profile)` not raw Profile
