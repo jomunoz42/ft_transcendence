@@ -3,7 +3,7 @@
 import os
 from urllib.parse import urlsplit
 
-LOCAL_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+LOCAL_ORIGINS = "https://localhost,https://127.0.0.1"
 
 
 def allowed_websocket_origins() -> frozenset[str]:

@@ -3,6 +3,20 @@
 version: "3.9"
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
   postgres:
     image: postgres:17-alpine
     env_file: .env
@@ -20,11 +34,12 @@ services:
   backend:
     build: ./backend
     env_file: .env
+    environment:
+      # Only reachable inside Docker; trust Caddy's forwarded HTTPS scheme.
+      FORWARDED_ALLOW_IPS: "*"
     # source mounted so edits and test runs do not need an image rebuild
     volumes:
       - ./backend:/app
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,8 +50,6 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "5173:5173"
     restart: unless-stopped
 
   prometheus:
@@ -64,6 +77,8 @@ services:
     restart: unless-stopped
 
 volumes:
+  caddy_data:
+  caddy_config:
   postgres_data:
   prometheus_data:
   grafana_data:

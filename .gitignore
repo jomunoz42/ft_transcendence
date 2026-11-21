@@ -48,3 +48,6 @@ temp/
 # Testing files
 .cookies
 sandbox.ipynb
+
+# Local Caddy certificate export
+/caddy-root.crt

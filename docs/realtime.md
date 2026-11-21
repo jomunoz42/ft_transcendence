@@ -14,8 +14,8 @@ no echo, broadcast command, or client-supplied presence update.
 Set `WEBSOCKET_ALLOWED_ORIGINS` in the backend environment (Compose loads `.env`):
 
 ```dotenv
-# Local Vite development; also the defaults when the variable is absent.
-WEBSOCKET_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+# Local Caddy HTTPS; also the defaults when the variable is absent.
+WEBSOCKET_ALLOWED_ORIGINS=https://localhost,https://127.0.0.1
 # Deployment example: replace the local list with your actual frontend origin.
 # WEBSOCKET_ALLOWED_ORIGINS=https://myplaylist.example
 ```
@@ -27,11 +27,10 @@ empty value rejects all connections. Missing, `null`, and unlisted Origin header
 are rejected before database authentication. Restart the backend after changing
 configuration.
 
-Serve the frontend over HTTPS and connect to `wss://` in deployment, forwarding
-WebSocket upgrades through the HTTPS reverse proxy. Origin configuration does
-not terminate TLS. The existing login cookie is `Secure`; use local HTTPS when
-exercising the complete browser login flow. This change does not weaken cookie
-settings or add HTTP CORS configuration.
+`make up` serves the frontend and API at `https://localhost`, with `/ws` using
+WSS through Caddy. Follow the [local certificate trust steps](../README.md#trust-local-https-once-per-machinebrowser)
+before testing in a browser. Caddy forwards WebSocket upgrades and the browser's
+Origin unchanged. The existing login cookie remains `Secure`.
 
 ## Presence protocol
 

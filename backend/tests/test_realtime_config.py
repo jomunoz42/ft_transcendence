@@ -5,7 +5,7 @@ from app.realtime.config import allowed_websocket_origins
 
 def test_local_defaults(monkeypatch):
     monkeypatch.delenv("WEBSOCKET_ALLOWED_ORIGINS", raising=False)
-    assert allowed_websocket_origins() == {"http://localhost:5173", "http://127.0.0.1:5173"}
+    assert allowed_websocket_origins() == {"https://localhost", "https://127.0.0.1"}
 
 
 def test_explicit_origins_replace_defaults_and_trim_whitespace(monkeypatch):

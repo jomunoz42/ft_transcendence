@@ -11,13 +11,13 @@ The endpoint is **`/ws`**, without an API prefix, query token, or subprotocol.
 
 | Environment | WebSocket URL | Browser page origin |
 | --- | --- | --- |
-| Default development services | `ws://localhost:8000/ws` | `http://localhost:5173` |
-| Equivalent loopback hostname | `ws://127.0.0.1:8000/ws` | `http://127.0.0.1:5173` |
+| Default Compose services | `wss://localhost/ws` | `https://localhost` |
+| Equivalent loopback hostname | `wss://127.0.0.1/ws` | `https://127.0.0.1` |
 | HTTPS manual setup below | `wss://localhost:8443/ws` | `https://localhost:8443` |
 | Deployment behind one HTTPS origin | `wss://<application-host>/ws` | `https://<application-host>` |
 
-`BACKEND_PORT` can change the development backend port. Use the same hostname
-throughout login and WebSocket connections: `localhost` and `127.0.0.1` have
+Use the same hostname throughout login and WebSocket connections:
+`localhost` and `127.0.0.1` have
 different cookies. Run **one backend worker**; presence is process-local.
 
 1. `POST /api/v1/auth/login` with JSON
@@ -33,17 +33,13 @@ different cookies. Run **one backend worker**; presence is process-local.
    state. `POST /api/v1/auth/logout` ends the current session and returns `204`.
 
 The backend accepts only exact browser origins in `WEBSOCKET_ALLOWED_ORIGINS`.
-Defaults are the two HTTP Vite origins above. HTTPS origins must be explicitly
-configured before starting the backend; the browser supplies `Origin` itself.
+Defaults are the two local HTTPS origins above. Configure any other origin
+before starting the backend; the browser supplies `Origin` itself.
 
-**Browser setup matters:** Compose currently exposes plain HTTP, the login
-cookie is Secure, and Vite currently has no API/WebSocket proxy. The backend
-also has no HTTP CORS middleware. The development URL describes the transport;
-it is not a guarantee that cross-origin `fetch` login and Secure cookies work
-over plain HTTP in every browser. Use trusted local HTTPS and a same-origin API
-proxy for the React application, or the backend-only HTTPS recipe below for
-verification. `credentials: "include"` alone does not configure HTTP CORS.
-Do not weaken the cookie or edit it manually to make the demo work.
+**Browser setup matters:** `make up` provides same-origin HTTPS and WSS through
+Caddy. Follow the [certificate trust steps](../README.md#trust-local-https-once-per-machinebrowser)
+before testing. The backend and Vite ports are internal to Docker. The login
+cookie remains Secure; do not edit it manually to make the demo work.
 
 ## Exact application messages
 
@@ -218,8 +214,7 @@ const stopPresence = watchPresence({
 // Call stopPresence() on logout/unmount; start a new watcher after login.
 ```
 
-With separate development ports, pass the backend WebSocket URL explicitly;
-deriving it from the Vite page would otherwise target port 5173. Investigate
+In Compose, derive the WebSocket URL from the HTTPS page as above. Investigate
 repeated upgrade failures with `/me` returning 200: usually the wrong URL,
 Origin, certificate, or cookie policy. Backoff does not repair configuration.
 
@@ -229,8 +224,9 @@ Use a migrated **development** PostgreSQL database, the backend virtualenv, and
 a browser-trusted local certificate covering `localhost`. If using `mkcert`,
 generate a local certificate outside the repo with
 `mkcert -cert-file /tmp/myplaylist-local.pem -key-file /tmp/myplaylist-local-key.pem localhost`
-after installing/trusting its local CA. Never commit private keys. TLS is an
-external development prerequisite; this repository does not provision it.
+after installing/trusting its local CA. Never commit private keys. This optional
+backend-only recipe runs outside Compose; the normal Compose workflow provisions
+TLS through Caddy as described in the README.
 
 1. From `backend/`, export your development `DATABASE_URL`, migrate with
    `.venv/bin/alembic upgrade head`, then start one backend:
