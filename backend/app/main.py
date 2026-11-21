@@ -47,11 +47,13 @@ app.include_router(profiles, prefix="/api/v1/profiles")
 from app.routes.v1.comments import router as comments
 app.include_router(comments, prefix="/api/v1/profiles")
 from app.routes.v1.reactions import router as reactions
-app.include_router(reactions, prefix="/api/v1/reactions")
+app.include_router(reactions, prefix="/api/v1/profiles")
 from app.routes.v1.friendships import router as friendships
 app.include_router(friendships, prefix="/api/v1/friends")
 from app.routes.v1.songs import router as songs
 app.include_router(songs, prefix="/api/v1/songs")
+from app.routes.v1.top10s import router as top10s
+app.include_router(top10s, prefix="/api/v1/profiles")
 
 @app.get("/metrics", include_in_schema=False)
 def metrics():

@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from app.db.models import Profile, User, Top10Entry, Song
+from app.db.models import Profile, User
 from pydantic import BaseModel
 from typing import Optional
 
@@ -22,8 +21,6 @@ def read_profile(profile_id: int, session: Session):
 def read_profiles(session: Session):
 	return session.query(Profile).join(User).filter(User.deleted_at.is_(None)).all()
 
-# TODO: limit the # of top 10 to 10 max songs
-# TODO: revamp this shit
 def update_profile(profile_id: int, data: ProfileUpdate, session: Session, current_user: User):
 	profile = session.query(Profile).where(Profile.id == profile_id).first()
 	profileData = data.model_dump(exclude_unset=True, exclude=None)

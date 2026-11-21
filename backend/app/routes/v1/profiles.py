@@ -1,4 +1,3 @@
-# TODO: Fix the /me profiles
 # TODO: Add rolllback on comments failure
 
 from fastapi import APIRouter, Depends, responses
@@ -10,8 +9,6 @@ from app.crud.user import read_user
 from app.db import _me_profile
 from app.db.models import User
 from app.crud.friendship import are_friends
-from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
-from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
 from app import errors
 
 router = APIRouter()
@@ -20,6 +17,21 @@ router = APIRouter()
 def get_profiles(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	profiles = read_profiles(session)
 	return profiles
+
+@router.get("/me")
+def get_me(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+	profile = read_profile(profile_id=current_user.profile.id, session=session)
+	user = read_user(user_id=current_user.id, session=session)
+	if not profile:
+		raise errors.HTTP_404_PROFILE_NOT_FOUND
+	return _me_profile(profile) |\
+		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
+
+@router.post("/me")
+def edit_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+	profile = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
+	session.commit()
+	return _me_profile(profile)
 
 @router.get("/{user_id}")
 def get_profile(user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
@@ -44,18 +56,3 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 		result["comments"] = profile.user.comments
 		result["reactions"] = profile.user.reactions
 	return result
-
-@router.get("/me")
-def get_me(session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	profile = read_profile(profile_id=current_user.profile.id, session=session)
-	user = read_user(user_id=current_user.id, session=session)
-	if not profile:
-		raise errors.HTTP_404_PROFILE_NOT_FOUND
-	return _me_profile(profile) |\
-		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
-
-@router.post("/me")
-def edit_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	profile = update_profile(profile_id=current_user.profile.id, data=data, session=session, current_user=current_user)
-	session.commit()
-	return _me_profile(profile)
