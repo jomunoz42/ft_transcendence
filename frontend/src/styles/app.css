@@ -16,4 +16,4 @@
 @import './profile.css';
 @import './settings.css';
 @import './auth.css';
-@import './theme.css';
+@import './theme.css';\n@import './legal.css';
