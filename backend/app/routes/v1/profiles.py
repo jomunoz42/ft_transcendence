@@ -1,4 +1,3 @@
-# TODO: Fix the /me profiles
 # TODO: Add rolllback on comments failure
 
 from fastapi import APIRouter, Depends, responses

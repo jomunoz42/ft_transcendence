@@ -42,26 +42,63 @@
 8. Profile search API
    - [ ] GET /api/v1/profiles/search?q=... — search by username/display name
 
-## Phase 3 — Advanced features
+## Phase 3 — Bugs & PR fixes
 
-9. Advanced search (module: 1pt)
-   - [ ] Search profiles by music tastes
-   - [ ] Song Advanced search GET /api/v1/search/songs?q=...&filter=...&page=...
-   - [ ] Implement pagination, sorting, filtering across endpoints
-   - [ ] Add song manually
-[maybe handled by Joao] 10. Notifications API (module: 1pt)
-   - [ ] GET /api/v1/notifications — list notifications
-   - [ ] PUT /api/v1/notifications/{id}/read — mark as read
-   - [ ] Backend creates notifications on: friend request, comment, reaction, etc.
-11. GDPR compliance (module: 1pt)
+9. Fix top10 UniqueViolation
+   - [ ] Extract top10 logic out of `update_profile`
+   - [ ] Delete old entries before inserting new ones (avoid unique constraint on `user_id, rank`)
+   - [ ] Decide return behavior: 200 replace or 400 reject on re-post
+10. Security fixes (from PR review)
+    - [x] POST /api/v1/settings — return `_me(user)` not raw User (was leaking password_hash)
+    - [x] POST /api/v1/profiles/me — return `_me_profile(profile)` not raw Profile
+    - [x] Centralized error handling (`app/errors/__init__.py`)
+    - [x] Removed broad `try/except` blocks hiding DB errors
+    - [x] Explicit `session.commit()` in routes, removed yield-based `commit_session`
+    - [x] `.env.example` — replaced real Spotify credentials with placeholders
+
+## Phase 4 — Modules (my scope)
+
+11. Standard User Management module (2pts Major)
+    - [x] Users can update their profile information
+    - [ ] Avatar upload — POST /api/v1/profiles/me/avatar (accept file, store, serve)
+    - [ ] Default avatar for users who don't upload one
+    - [x] Users can add friends and see online status
+    - [x] Profile page displaying user information
+12. Public API module (2pts Major)
+    - [ ] API key model + generation endpoint
+    - [ ] API key auth middleware (separate from session auth)
+    - [ ] Rate limiting middleware
+    - [ ] Add at least one PUT endpoint (currently only GET/POST/DELETE)
+    - [x] Swagger docs — already free from FastAPI at /docs and /redoc
+
+## Phase 5 — Mandatory requirements
+
+13. Privacy Policy & Terms of Service
+    - [ ] Backend endpoints to serve content
+    - [ ] Coordinate with frontend for accessible pages (footer links)
+    - [ ] Content must be relevant, not placeholder
+14. HTTPS setup
+    - [ ] TLS termination (nginx reverse proxy with self-signed cert or similar)
+    - [ ] All browser-to-backend connections over HTTPS
+15. Backend input validation audit
+    - [ ] Audit all POST endpoints for proper Pydantic validation (types, lengths, formats)
+    - [ ] Especially: registration, profile update, comments, reactions
+
+## Phase 6 — Advanced features (stretch)
+
+16. Advanced search (module: 1pt)
+    - [ ] Song Advanced search GET /api/v1/search/songs?q=...&filter=...&page=...
+    - [ ] Implement pagination, sorting, filtering across endpoints
+    - [ ] Add song manually
+17. GDPR compliance (module: 1pt)
     - [ ] GET /api/v1/users/me/data-export — export all user data as JSON
     - [x] DELETE /api/v1/settings — soft-delete account
-12. [x] Input validation everywhere — both Pydantic (request) and DB constraints
-13. [ ] HTTPS setup — coordinate with Person 4 (likely nginx reverse proxy with self-signed cert)
 
-## Phase 4 — Polish
+## Not on me (tracked for awareness)
 
-14. [x] Error handling middleware — consistent error response format across all routes
-15. [ ] Rate limiting — if claiming the public API module
-16. [ ] Metrics endpoint — /metrics for Prometheus scraping (coordinate with Person 4)
-17. [x] API documentation — FastAPI generates this automatically at /docs and /redoc
+- OAuth 42 login — teammate
+- Prometheus + Grafana monitoring — Joao
+- WebSocket / chat / presence — teammate
+- Friendships logic — Andre
+- Notifications API — maybe Joao
+- Frontend (CSS framework, UI, client-side validation)
