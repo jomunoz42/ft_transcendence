@@ -24,7 +24,7 @@ from app.auth.constants import SESSION_COOKIE_NAME
 from app.main import app, manager
 from realtime_helpers import deliver_to_all
 
-ALLOWED_ORIGIN = "http://localhost:5173"
+ALLOWED_ORIGIN = "https://localhost"
 SESSION_TOKEN = "test-session-token"
 
 
@@ -300,8 +300,8 @@ async def test_unexpected_endpoint_error_still_removes_connection(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("origin", [
-    None, "null", "https://evil.example", "http://localhost:5173.evil.example",
-    "http://localhost:5174", "https://localhost:5173",
+    None, "null", "https://evil.example", "https://localhost.evil.example",
+    "http://localhost", "http://localhost:5173", "https://localhost:5173",
 ])
 async def test_unauthorized_origin_is_rejected_before_authentication(
     origin, authenticated_user, manager_connect, forbid_database_access,
@@ -422,7 +422,7 @@ async def test_real_auth_thread_timeout_cannot_accept_after_lookup_finishes(monk
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("origin", [ALLOWED_ORIGIN, "http://127.0.0.1:5173"])
+@pytest.mark.parametrize("origin", [ALLOWED_ORIGIN, "https://127.0.0.1"])
 async def test_authentication_runs_in_threadpool_before_accepting(
     monkeypatch, origin, manager_connect, friendship_lookup,
 ):

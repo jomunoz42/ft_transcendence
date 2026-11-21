@@ -42,7 +42,7 @@ migrate: check-compose
 	$(COMPOSE) -f "$(COMPOSE_FILE)" run --rm backend alembic upgrade head
 
 login:
-	@curl -i localhost:8000/api/v1/auth/login \
+	@curl -i https://localhost/api/v1/auth/login \
 		-H "Content-type: application/json" \
 		-c .cookies -b .cookies \
 		-d '{\

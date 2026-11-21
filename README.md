@@ -76,10 +76,59 @@ Build and start the complete application:
 make up
 ```
 
-The development services are exposed at:
+Open `https://localhost` (or `https://127.0.0.1`) after trusting the local
+certificate as described below. Caddy redirects HTTP on port 80 to HTTPS on
+port 443, serves Vite, and forwards `/api/*` and `/ws` to FastAPI, including
+WebSocket upgrades. API calls use the page's HTTPS origin and WebSockets use WSS.
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8000`
+Vite and FastAPI have no published host ports; ports 5173 and 8000 are internal
+to Docker. Source mounts, Vite hot reload, and backend reload remain available.
+Prometheus still scrapes `http://backend:8000/metrics` inside Docker. Existing
+`.env` files should set
+`WEBSOCKET_ALLOWED_ORIGINS=https://localhost,https://127.0.0.1`; `BACKEND_PORT`
+is no longer used. Keep the same hostname throughout login and WebSocket use.
+
+### Trust local HTTPS (once per machine/browser)
+
+Caddy generates certificates automatically and keeps its local CA in the
+`caddy_data` volume. After `make up`, run in another terminal:
+
+```bash
+mkdir -p .scratch
+docker compose exec -T caddy cat /data/caddy/pki/authorities/local/root.crt > .scratch/caddy-root.crt
+```
+
+Use `docker-compose` instead if using standalone Compose v1. On Debian/Ubuntu,
+trust this public root certificate for command-line clients:
+
+```bash
+sudo cp .scratch/caddy-root.crt /usr/local/share/ca-certificates/ft-transcendence-caddy.crt
+sudo update-ca-certificates
+```
+
+In Chrome, open Settings → Privacy and security → Security → Manage certificates
+and import `.scratch/caddy-root.crt` into the local trusted authorities for
+identifying websites, then restart Chrome. Other systems can import the same
+certificate into their system trust store; see
+[Caddy's local HTTPS instructions](https://caddyserver.com/docs/running#local-https-with-docker).
+Only export `root.crt`, never the CA private key. `.scratch` is ignored by Git.
+`make down` preserves the CA; deleting `caddy_data` (including via `make db-reset`)
+requires exporting and trusting the new CA again.
+
+Verify TLS without bypassing certificate validation:
+
+```bash
+curl --cacert .scratch/caddy-root.crt -I https://localhost
+curl --cacert .scratch/caddy-root.crt -i https://localhost/api/v1/auth/me
+```
+
+The second request should return `401` when logged out. In Chrome, verify a trusted
+address bar, registration/login/logout, the `Secure` session cookie, HTTPS API
+requests, a `wss://localhost/ws` connection with status `101` after login, and
+Vite hot reload. Check DevTools for certificate, mixed-content, or WebSocket
+errors. Direct HTTP access on ports 8000 and 5173 should fail.
+
+### Stop and development commands
 
 To stop the application:
 
