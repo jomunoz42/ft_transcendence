@@ -10,6 +10,9 @@ from app import errors
 from app.db import get_session
 from app.db.models import Block, Friendship, User
 from app.realtime.notifications import FriendsNotifier, get_friends_notifier
+from app.realtime.notifications import NotificationsNotifier, get_notifications_notifier
+from app.crud.notification import NotificationEvents
+from app.notifications import advance_updated_at, record_action
 
 def check_exists(session: Session, them_id: int) -> None:
     """Raise 404 if they never existed or deleted their account."""
@@ -26,12 +29,12 @@ def check_not_blocked(session: Session, me_id: int, them_id: int) -> None:
         raise errors.HTTP_404_NOT_FOUND
 
 
-def send_request(session: Session, requester_id: int, addressee_id: int) -> Friendship:
+def send_request(session: Session, requester_id: int, addressee_id: int, events: NotificationEvents | None = None) -> Friendship:
     """Ask another user to be friends; the pair's history decides the result. Never commits."""
     check_exists(session, addressee_id)
     check_not_blocked(session, requester_id, addressee_id)
 
-    existing = read_friendship(session, requester_id, addressee_id)
+    existing = read_friendship(session, requester_id, addressee_id, for_update=True)
     if existing is not None:
         they_asked_first = existing.requester_id == addressee_id
         if existing.status == "declined" and not they_asked_first:
@@ -40,11 +43,15 @@ def send_request(session: Session, requester_id: int, addressee_id: int) -> Frie
             # The one who said no changed their mind: same row, roles swapped.
             existing.requester_id, existing.addressee_id = requester_id, addressee_id
             existing.status = "pending"
+            advance_updated_at(existing)
             session.flush()
+            record_action(session, existing, "friend_request.created", addressee_id, requester_id, events)
             return existing
         if they_asked_first and existing.status == "pending":
             existing.status = "accepted"
+            advance_updated_at(existing)
             session.flush()
+            record_action(session, existing, "friend_request.accepted", addressee_id, requester_id, events)
         return existing
 
     try:
@@ -52,49 +59,56 @@ def send_request(session: Session, requester_id: int, addressee_id: int) -> Frie
     except HTTPException:
         raise errors.HTTP_404_NOT_FOUND from None
     if request is None:
-        return send_request(session, requester_id, addressee_id)
+        return send_request(session, requester_id, addressee_id, events)
+    record_action(session, request, "friend_request.created", addressee_id, requester_id, events)
     return request
 
-def accept_request(session: Session, me_id: int, them_id: int) -> Friendship:
+def accept_request(session: Session, me_id: int, them_id: int, events: NotificationEvents | None = None) -> Friendship:
     """Accept the pending request they sent me. Never commits."""
     check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
-    row = read_friendship(session, me_id, them_id)
+    row = read_friendship(session, me_id, them_id, for_update=True)
     if row is None or row.status != "pending" or row.requester_id != them_id:
         raise errors.HTTP_404_NOT_FOUND
     row.status = "accepted"
+    advance_updated_at(row)
     session.flush()
+    record_action(session, row, "friend_request.accepted", them_id, me_id, events)
     return row
 
-def decline_request(session: Session, me_id: int, them_id: int) -> None:
+def decline_request(session: Session, me_id: int, them_id: int, events: NotificationEvents | None = None) -> None:
     """Decline the pending request they sent me, keeping the row so only I can reopen it. Never commits."""
     check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
-    row = read_friendship(session, me_id, them_id)
+    row = read_friendship(session, me_id, them_id, for_update=True)
     if row is None or row.status != "pending" or row.requester_id != them_id:
         raise errors.HTTP_404_NOT_FOUND
     row.status = "declined"
+    advance_updated_at(row)
     session.flush()
+    record_action(session, row, "friend_request.declined", them_id, me_id, events)
 
-def cancel_request(session: Session, me_id: int, them_id: int) -> None:
+def cancel_request(session: Session, me_id: int, them_id: int, events: NotificationEvents | None = None) -> None:
     """Withdraw the pending request I sent, deleting the row so either of us can ask again. Never commits."""
     check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
-    row = read_friendship(session, me_id, them_id)
+    row = read_friendship(session, me_id, them_id, for_update=True)
     if row is None or row.status != "pending" or row.requester_id != me_id:
         raise errors.HTTP_404_NOT_FOUND
     session.delete(row)
     session.flush()
+    record_action(session, row, "friend_request.cancelled", them_id, me_id, events)
 
-def remove_friend(session: Session, me_id: int, them_id: int) -> None:
+def remove_friend(session: Session, me_id: int, them_id: int, events: NotificationEvents | None = None) -> None:
     """End our friendship from either side, deleting the row so either of us can ask again. Never commits."""
     check_exists(session, them_id)
     check_not_blocked(session, me_id, them_id)
-    row = read_friendship(session, me_id, them_id)
+    row = read_friendship(session, me_id, them_id, for_update=True)
     if row is None or row.status != "accepted":
         raise errors.HTTP_404_NOT_FOUND
     session.delete(row)
     session.flush()
+    record_action(session, row, "friendship.removed", them_id, me_id, events)
 
 def block_user(session: Session, me_id: int, them_id: int) -> None:
     """Block them and delete any friendship row between us; blocking again changes nothing. Never commits."""
@@ -149,51 +163,61 @@ def blocks(me: User = Depends(current_user), session: Session = Depends(get_sess
     return [{"id": user.id, "display_name": user.profile.display_name} for user in list_blocked(session, me.id)]
 
 @router.post("/request/{them_id}")
-def request(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:
+def request(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)) -> dict:
     """Ask them to be friends; 200 with the resulting status, 422 on myself, 404 if there is nothing to ask, 409 if a rule refuses."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
-    friendship = send_request(session, me.id, them_id)
+    events: NotificationEvents = []
+    friendship = send_request(session, me.id, them_id, events=events)
     session.commit()
+    notify_notifications(events)
     if friendship.status == "accepted":
         notify_friends(me.id, them_id)
     return {"status": friendship.status}
 
 @router.post("/accept/{them_id}")
-def accept(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:
+def accept(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)) -> dict:
     """Accept the pending request they sent me; 200 accepted, 422 on myself, 404 if they sent me none, 409 if I blocked them."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
-    accept_request(session, me.id, them_id)
+    events: NotificationEvents = []
+    accept_request(session, me.id, them_id, events=events)
     session.commit()
+    notify_notifications(events)
     notify_friends(me.id, them_id)
     return {"status": "accepted"}
 
 @router.post("/decline/{them_id}")
-def decline(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+def decline(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)) -> dict:
     """Decline the pending request they sent me; 200 declined, 422 on myself, 404 if they sent me none, 409 if I blocked them."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
-    decline_request(session, me.id, them_id)
+    events: NotificationEvents = []
+    decline_request(session, me.id, them_id, events=events)
     session.commit()
+    notify_notifications(events)
     return {"status": "declined"}
 
 @router.post("/cancel/{them_id}")
-def cancel(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+def cancel(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)) -> dict:
     """Withdraw the pending request I sent them; 200 cancelled, 422 on myself, 404 if I sent them none, 409 if I blocked them."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
-    cancel_request(session, me.id, them_id)
+    events: NotificationEvents = []
+    cancel_request(session, me.id, them_id, events=events)
     session.commit()
+    notify_notifications(events)
     return {"status": "cancelled"}
 
 @router.delete("/{them_id}")
-def remove(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier)) -> dict:
+def remove(them_id: int, me: User = Depends(current_user), session: Session = Depends(get_session), notify_friends: FriendsNotifier = Depends(get_friends_notifier), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)) -> dict:
     """End our friendship from either side; 200 removed, 422 on myself, 404 if we are not friends, 409 if I blocked them."""
     if me.id == them_id:
         raise errors.HTTP_422_UNPROCESSABLE_CONTENT
-    remove_friend(session, me.id, them_id)
+    events: NotificationEvents = []
+    remove_friend(session, me.id, them_id, events=events)
     session.commit()
+    notify_notifications(events)
     notify_friends(me.id, them_id)
     return {"status": "removed"}
 

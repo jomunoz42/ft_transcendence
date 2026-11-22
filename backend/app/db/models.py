@@ -60,6 +60,9 @@ class User(Base):
         foreign_keys="Top10Reaction.author_id", back_populates="author", cascade="all, delete-orphan"
     )
     sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    received_notifications: Mapped[list["Notification"]] = relationship(
+        foreign_keys="Notification.recipient_id", back_populates="recipient", cascade="all, delete-orphan"
+    )
 
 
 class Profile(Base):
@@ -201,3 +204,24 @@ class UserSession(Base):
     expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index("ix_notifications_recipient_id_created_at", "recipient_id", "created_at"),
+        UniqueConstraint("recipient_id", "event_key", name="uq_notifications_recipient_event_key"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    recipient_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    actor_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
+    event_type: Mapped[str] = mapped_column(String, nullable=False)
+    message: Mapped[str] = mapped_column(String, nullable=False)
+    # Nullable for notifications predating deduplication; required by the service.
+    event_key: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    read_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+
+    recipient: Mapped["User"] = relationship(foreign_keys=[recipient_id], back_populates="received_notifications")
+    actor: Mapped["User | None"] = relationship(foreign_keys=[actor_id])

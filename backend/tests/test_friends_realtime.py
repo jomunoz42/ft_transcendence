@@ -18,6 +18,14 @@ pytestmark = pytest.mark.anyio
 FRIENDS = "/api/v1/friends"
 
 
+async def receive_presence(socket):
+    """Persistent notifications may precede the existing presence refresh."""
+    while True:
+        event = await socket.receive_json()
+        if event["type"] != "notification":
+            return event
+
+
 @pytest.fixture
 def no_polling(realtime, monkeypatch):
     """The realtime app with the friendship polling pushed out of reach, so only a notification can refresh."""
@@ -41,8 +49,8 @@ async def test_accepting_a_request_refreshes_both_sides(no_polling):
         response = await call("POST", f"/accept/{ids[0]}", tokens[2])
 
         assert response.status_code == 200
-        assert await sender.receive_json() == snapshot([ids[2]])
-        assert await addressee.receive_json() == snapshot([ids[0]])
+        assert await receive_presence(sender) == snapshot([ids[2]])
+        assert await receive_presence(addressee) == snapshot([ids[0]])
 
 
 async def test_asking_back_refreshes_both_sides(no_polling):
@@ -54,8 +62,8 @@ async def test_asking_back_refreshes_both_sides(no_polling):
         response = await call("POST", f"/request/{ids[0]}", tokens[2])
 
         assert response.json() == {"status": "accepted"}
-        assert await first_asker.receive_json() == snapshot([ids[2]])
-        assert await asker_back.receive_json() == snapshot([ids[0]])
+        assert await receive_presence(first_asker) == snapshot([ids[2]])
+        assert await receive_presence(asker_back) == snapshot([ids[0]])
 
 
 @pytest.mark.parametrize(("method", "route"), [("DELETE", "/{them}"), ("POST", "/block/{them}")])
@@ -64,13 +72,13 @@ async def test_ending_a_friendship_refreshes_both_sides(no_polling, method, rout
     async with AsyncExitStack() as stack:
         friend = await stack.enter_async_context(connected(tokens[1]))
         me = await stack.enter_async_context(connected(tokens[0], [ids[1]]))
-        await friend.receive_json()  # I came online.
+        await receive_presence(friend)  # I came online.
 
         response = await call(method, route.format(them=ids[1]), tokens[0])
 
         assert response.status_code == 200
-        assert await me.receive_json() == snapshot([])
-        assert await friend.receive_json() == snapshot([])
+        assert await receive_presence(me) == snapshot([])
+        assert await receive_presence(friend) == snapshot([])
 
 
 async def test_every_open_tab_gets_the_refresh(no_polling):
@@ -82,9 +90,9 @@ async def test_every_open_tab_gets_the_refresh(no_polling):
 
         await call("POST", f"/accept/{ids[0]}", tokens[2])
 
-        assert await first_tab.receive_json() == snapshot([ids[2]])
-        assert await second_tab.receive_json() == snapshot([ids[2]])
-        assert await addressee.receive_json() == snapshot([ids[0]])
+        assert await receive_presence(first_tab) == snapshot([ids[2]])
+        assert await receive_presence(second_tab) == snapshot([ids[2]])
+        assert await receive_presence(addressee) == snapshot([ids[0]])
 
 
 async def test_a_refused_action_sends_nothing(no_polling, monkeypatch):

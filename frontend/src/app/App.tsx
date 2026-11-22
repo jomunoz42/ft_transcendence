@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -44,7 +45,13 @@ export default function App() {
   const [headerNotice, setHeaderNotice] = useState('')
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const presence = useWebSocket(user !== null)
+  const presence = useWebSocket(user !== null, user?.id)
+
+  const handleSessionExpired = useCallback(() => {
+    setUser(null)
+    window.history.replaceState({}, '', '/login')
+    setPath('/login')
+  }, [])
 
   function handleAuthenticated(authenticatedUser: User) {
     setUser(authenticatedUser)
@@ -260,6 +267,9 @@ export default function App() {
       headerNotice={headerNotice}
       onToggleTheme={handleToggleTheme}
       onLogout={handleLogout}
+      notificationRevision={presence.notificationRevision}
+      connectionStatus={presence.status}
+      onSessionExpired={handleSessionExpired}
     >
       {page}
     </Shell>

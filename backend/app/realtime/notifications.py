@@ -5,10 +5,31 @@ from collections.abc import Callable
 
 from anyio import from_thread
 from fastapi import Request
+from app.crud.notification import NotificationEvents
 
 logger = logging.getLogger(__name__)
 LogoutNotifier = Callable[[str], None]
 FriendsNotifier = Callable[..., None]
+NotificationsNotifier = Callable[[NotificationEvents], None]
+
+
+def get_notifications_notifier(request: Request) -> NotificationsNotifier:
+    """Deliver newly persisted IDs after commit; REST remains the durable fallback.
+
+No message, actor, source content or internal event key crosses this bridge.
+The existing manager handles every local session, send locks and revalidation.
+"""
+    def notify(events: NotificationEvents) -> None:
+        for recipient_id, notification_id in events:
+            try:
+                from_thread.run(
+                    request.app.state.realtime_manager.send_to_user,
+                    recipient_id, {"type": "notification", "data": {"id": notification_id}},
+                )
+            except Exception:
+                logger.error("Realtime notification delivery failed; notification remains available through REST")
+
+    return notify
 
 
 def get_logout_notifier(request: Request) -> LogoutNotifier:
