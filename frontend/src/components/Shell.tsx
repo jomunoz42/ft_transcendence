@@ -9,6 +9,8 @@ import sunIcon from '../assets/icons/sunIcon.svg'
 import type { User } from '../lib/api.ts'
 import Sidebar from './Sidebar.tsx'
 import LegalFooter from './LegalFooter.tsx'
+import NotificationBell from './NotificationBell.tsx'
+import type { PresenceStatus } from '../websocket/useWebSocket.ts'
 
 type Theme = 'light' | 'dark'
 
@@ -20,6 +22,9 @@ type ShellProps = {
   headerNotice: string
   onToggleTheme: () => void
   onLogout: () => Promise<void>
+  notificationRevision: number
+  connectionStatus: PresenceStatus
+  onSessionExpired: () => void
 }
 
 function getPageTitle(path: Route) {
@@ -44,6 +49,9 @@ export default function Shell({
   headerNotice,
   onToggleTheme,
   onLogout,
+  notificationRevision,
+  connectionStatus,
+  onSessionExpired,
 }: ShellProps) {
   const pageTitle = getPageTitle(path)
   const darkModeEnabled = theme === 'dark'
@@ -78,6 +86,8 @@ export default function Shell({
           </div>
 
           <div className="topbar-actions">
+            <NotificationBell key={user.id} revision={notificationRevision}
+              connectionStatus={connectionStatus} onSessionExpired={onSessionExpired} />
             {headerNotice && (
               <div
                 className="header-notice"

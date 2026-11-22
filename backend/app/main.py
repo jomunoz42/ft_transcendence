@@ -48,6 +48,8 @@ from app.routes.v1.friendships import router as friendships
 app.include_router(friendships, prefix="/api/v1/friends")
 from app.routes.v1.songs import router as songs
 app.include_router(songs, prefix="/api/v1/songs")
+from app.routes.v1.notifications import router as notifications
+app.include_router(notifications, prefix="/api/v1/notifications")
 
 @app.get("/metrics", include_in_schema=False)
 def metrics():

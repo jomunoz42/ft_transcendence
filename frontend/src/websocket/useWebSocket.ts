@@ -13,6 +13,7 @@ export type PresenceStatus =
 type PresenceMessage =
   | { type: 'presence_snapshot'; data: { online_user_ids: number[] } }
   | { type: 'presence'; data: { user_id: number; online: boolean } }
+  | { type: 'notification'; data: { id: number } }
 
 function parsePresenceMessage(value: unknown): PresenceMessage | null {
   if (typeof value !== 'string') return null
@@ -31,6 +32,13 @@ function parsePresenceMessage(value: unknown): PresenceMessage | null {
   const candidate = message as { type: unknown; data: unknown }
   if (typeof candidate.data !== 'object' || candidate.data === null) return null
 
+  if (candidate.type === 'notification' && 'id' in candidate.data) {
+    const id = candidate.data.id
+    if (Number.isSafeInteger(id) && Number(id) > 0) {
+      return { type: 'notification', data: { id: Number(id) } }
+    }
+  }
+
   if (candidate.type === 'presence_snapshot' && 'online_user_ids' in candidate.data) {
     const ids = (candidate.data as { online_user_ids: unknown }).online_user_ids
     if (Array.isArray(ids) && ids.every((id) => Number.isSafeInteger(id) && id > 0)) {
@@ -48,9 +56,10 @@ function parsePresenceMessage(value: unknown): PresenceMessage | null {
   return null
 }
 
-export function useWebSocket(enabled: boolean) {
+export function useWebSocket(enabled: boolean, userId?: number) {
   const [status, setStatus] = useState<PresenceStatus>('disabled')
   const [onlineIds, setOnlineIds] = useState<Set<number>>(() => new Set())
+  const [notificationRevision, setNotificationRevision] = useState(0)
 
   useEffect(() => {
     if (!enabled) return
@@ -75,6 +84,7 @@ export function useWebSocket(enabled: boolean) {
     const markUnknown = (nextStatus: PresenceStatus) => {
       setOnlineIds(new Set())
       setStatus(nextStatus)
+      if (nextStatus === 'login-required') setNotificationRevision((value) => value + 1)
     }
 
     const scheduleRetry = () => {
@@ -133,7 +143,15 @@ export function useWebSocket(enabled: boolean) {
         const message = parsePresenceMessage(event.data)
         if (!message) return
 
+        if (message.type === 'notification') {
+          // This is an invalidation signal only. REST supplies all content,
+          // ownership, read status and counts through the authenticated session.
+          if (synchronized) setNotificationRevision((value) => value + 1)
+          return
+        }
+
         if (message.type === 'presence_snapshot') {
+          if (!synchronized) setNotificationRevision((value) => value + 1)
           synchronized = true
           attempts = 0
           clearSnapshotTimer()
@@ -178,7 +196,7 @@ export function useWebSocket(enabled: boolean) {
       if (socket !== null) socket.close()
       socket = null
     }
-  }, [enabled])
+  }, [enabled, userId])
 
-  return { status: enabled ? status : 'disabled', onlineIds: enabled ? onlineIds : emptyOnlineIds }
+  return { status: enabled ? status : 'disabled', onlineIds: enabled ? onlineIds : emptyOnlineIds, notificationRevision }
 }

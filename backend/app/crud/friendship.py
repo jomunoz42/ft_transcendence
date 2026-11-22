@@ -7,16 +7,17 @@ from sqlalchemy.orm import Session, aliased
 from app.db.models import Friendship, User, Block
 from app import errors
 
-def read_friendship(session: Session, a: int, b: int) -> Friendship | None:
+def read_friendship(session: Session, a: int, b: int, *, for_update: bool = False) -> Friendship | None:
     """The friendships row for this pair of users, whichever of the two asked."""
-    return session.scalar(
-        select(Friendship).where(
-            or_(
-                and_(Friendship.requester_id == a, Friendship.addressee_id == b),
-                and_(Friendship.requester_id == b, Friendship.addressee_id == a),
-            )
+    query = select(Friendship).where(
+        or_(
+            and_(Friendship.requester_id == a, Friendship.addressee_id == b),
+            and_(Friendship.requester_id == b, Friendship.addressee_id == a),
         )
     )
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    return session.scalar(query)
 
 
 def create_friendship(session: Session, requester_id: int, addressee_id: int) -> Friendship | None:
