@@ -3,6 +3,7 @@
 from contextlib import AsyncExitStack
 from unittest.mock import Mock
 
+import anyio
 import httpx
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -20,10 +21,11 @@ FRIENDS = "/api/v1/friends"
 
 async def receive_presence(socket):
     """Persistent notifications may precede the existing presence refresh."""
-    while True:
-        event = await socket.receive_json()
-        if event["type"] != "notification":
-            return event
+    with anyio.fail_after(5):
+        while True:
+            event = await socket.receive_json()
+            if event["type"] != "notification":
+                return event
 
 
 @pytest.fixture
