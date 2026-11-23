@@ -46,6 +46,7 @@ def isolated_db():
 
 
 def browser() -> TestClient:
+    """A browser with its own cookies that sees a server error as a 500 response."""
     return TestClient(app, base_url="https://testserver", raise_server_exceptions=False)
 
 
@@ -62,6 +63,7 @@ def all_at_once(calls):
 
 
 def log_in(email: str) -> tuple[TestClient, int]:
+    """A browser with a new account for `email` registered and logged in, and its id."""
     b = browser()
     user_id = b.post(f"{API}/auth/register", json={"email": email, "password": "hunter22", "display_name": email}).json()["id"]
     b.post(f"{API}/auth/login", json={"email": email, "password": "hunter22"})

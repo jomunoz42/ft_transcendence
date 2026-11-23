@@ -23,6 +23,8 @@ ROUTES = [
     ("GET", "/profiles/{bob}/reactions", None),
     ("POST", "/profiles/{bob}/comments", {"body": "nice list"}),
     ("POST", "/profiles/{bob}/reactions", {"reaction": "like"}),
+    ("POST", "/profiles/{bob}/comments/{comment}", {"body": "edited"}),
+    ("POST", "/profiles/{bob}/comments/latest", {"body": "edited again"}),
     ("GET", "/friends", None),
     ("GET", "/friends/requests", None),
     ("GET", "/friends/blocks", None),
@@ -31,7 +33,10 @@ ROUTES = [
 
 @pytest.fixture
 def alice(client):
-    """Alice logged in, friends with Bob; Bob has commented on and reacted to her Top 10."""
+    """Alice logged in, friends with Bob; each commented on the other's Top 10, Bob also reacted to hers.
+
+    Gives (Alice's browser, path values: Bob's id and Alice's comment id).
+    """
     bob = TestClient(app, base_url="https://testserver")
     client.post(f"{API}/auth/register", json=ALICE)
     bob_id = bob.post(f"{API}/auth/register", json=BOB).json()["id"]
@@ -41,14 +46,16 @@ def alice(client):
     bob.post(f"{API}/friends/accept/{alice_id}")
     bob.post(f"{API}/profiles/{alice_id}/comments", json={"body": "great taste"})
     bob.post(f"{API}/profiles/{alice_id}/reactions", json={"reaction": "like"})
-    return client, bob_id
+    client.post(f"{API}/profiles/{bob_id}/comments", json={"body": "nice list"})
+    comment_id = client.get(f"{API}/profiles/{bob_id}/comments").json()[0]["id"]
+    return client, {"bob": bob_id, "comment": comment_id}
 
 
 @pytest.mark.parametrize(("method", "path", "body"), ROUTES, ids=[f"{m} {p}" for m, p, _ in ROUTES])
 def test_no_response_contains_a_password_hash(alice, method, path, body):
-    client, bob_id = alice
+    client, ids = alice
 
-    response = client.request(method, API + path.format(bob=bob_id), json=body, follow_redirects=True)
+    response = client.request(method, API + path.format(**ids), json=body, follow_redirects=True)
 
     assert response.status_code < 500
     assert "password_hash" not in response.text

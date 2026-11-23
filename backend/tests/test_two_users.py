@@ -10,6 +10,8 @@ LOGIN = "/api/v1/auth/login"
 LOGOUT = "/api/v1/auth/logout"
 ME = "/api/v1/auth/me"
 PROFILE_ME = "/api/v1/profiles/me"
+PROFILES = "/api/v1/profiles"
+FRIENDS = "/api/v1/friends"
 ALICE = {"email": "alice@x.com", "password": "hunter22", "display_name": "Alice"}
 BOB = {"email": "bob@x.com", "password": "hunter33", "display_name": "Bob"}
 
@@ -51,3 +53,19 @@ def test_each_user_gets_their_own_profile_from_profiles_me(client, other_browser
 
     assert client.get(PROFILE_ME).json()["display_name"] == "Alice"
     assert other_browser.get(PROFILE_ME).json()["display_name"] == "Bob"
+
+
+def test_a_user_cannot_edit_or_delete_another_users_comment(client, other_browser):
+    alice_id = log_in(client, ALICE)
+    bob_id = log_in(other_browser, BOB)
+    client.post(f"{FRIENDS}/request/{bob_id}")
+    other_browser.post(f"{FRIENDS}/accept/{alice_id}")
+    other_browser.post(f"{PROFILES}/{alice_id}/comments", json={"body": "great taste"})
+    comment = f"{PROFILES}/{alice_id}/comments"
+    comment_id = other_browser.get(comment).json()[0]["id"]
+
+    edited = client.post(f"{comment}/{comment_id}", json={"body": "changed by Alice"})
+    deleted = client.delete(f"{comment}/{comment_id}")
+
+    assert (edited.status_code, deleted.status_code) == (404, 404)
+    assert [c["body"] for c in other_browser.get(comment).json()] == ["great taste"]
