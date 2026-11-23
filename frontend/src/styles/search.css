@@ -1,0 +1,58 @@
+.search-page {
+  max-width: 1100px;
+  font-size: 1rem;
+}
+
+.search-page h2 { margin-top: 0; }
+.search-description { color: var(--muted); }
+
+.song-search-form,
+.search-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.search-query,
+.search-actions { grid-column: 1 / -1; }
+.search-page label { display: grid; gap: 8px; font-size: 0.875rem; }
+.search-page input,
+.search-page select {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  color: var(--ink);
+  background-color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.search-page select {
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23858a80' stroke-width='2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.search-page :is(input, select, button):focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.search-page .button { font-size: 0.875rem; }
+.search-page button:disabled { opacity: 0.5; cursor: default; transform: none; }
+.search-actions,
+.search-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.search-pagination { justify-content: space-between; margin-top: 24px; }
+.search-results { padding: 0; margin: 0; list-style: none; }
+.search-results li { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.search-song-info,
+.search-song-meta { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.search-song-info span,
+.search-song-meta { color: var(--muted); font-size: 0.875rem; }
+.search-song-meta { text-align: right; }
+.search-applied-filters { color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .song-search-form,
+  .search-controls { grid-template-columns: 1fr; }
+}

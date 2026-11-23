@@ -1,10 +1,12 @@
 import friendsIcon from '../assets/icons/friendsIcon.svg'
 import homeIcon from '../assets/icons/homeIcon.svg'
 import settingsIcon from '../assets/icons/settingsIcon.svg'
+import searchIcon from '../assets/icons/searchIcon.svg'
 
 export type Route =
   | '/'
   | '/friends'
+  | '/search'
   | '/settings'
   | '/login'
   | '/register'
@@ -47,6 +49,10 @@ export function currentPath(): Route {
     return '/friends'
   }
 
+  if (path === '/search') {
+    return '/search'
+  }
+
   if (path === '/settings') {
     return '/settings'
   }
@@ -71,6 +77,11 @@ export const links: NavigationLink[] = [
     to: '/',
     label: 'Home',
     icon: homeIcon,
+  },
+  {
+    to: '/search',
+    label: 'Search',
+    icon: searchIcon,
   },
   {
     to: '/friends',
