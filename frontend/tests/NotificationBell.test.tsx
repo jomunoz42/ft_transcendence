@@ -45,7 +45,7 @@ describe('notification interface', () => {
     await screen.findByRole('button', { name: 'Notifications, 0 unread' })
     expect(screen.queryByRole('button', { name: /Mark as read:/ })).toBeNull()
     expect(screen.getByText('Read')).toBeTruthy()
-    expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Notifications' }))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Notifications' })))
     expect(fetch.mock.calls.filter(([url, init]) => String(url).endsWith('/1/read') && init?.method === 'POST')).toHaveLength(1)
   })
 

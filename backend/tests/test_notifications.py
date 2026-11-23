@@ -22,7 +22,8 @@ def users(session):
 def notification(session, users):
     recipient, actor = users
     notification = Notification(
-        recipient=recipient, actor=actor, event_type="friend_request", message="A new friend request."
+        recipient=recipient, actor=actor, event_type="friend_request", message="A new friend request.",
+        event_key="friend-request:1",
     )
     session.add(notification)
     session.flush()
@@ -48,8 +49,8 @@ def test_plain_sql_insert_gets_timestamp_and_nullable_defaults(session, users):
     recipient, _ = users
     row = session.execute(
         text(
-            "INSERT INTO notifications (recipient_id, event_type, message) "
-            "VALUES (:recipient_id, 'system', 'Welcome.') "
+            "INSERT INTO notifications (recipient_id, event_type, message, event_key) "
+            "VALUES (:recipient_id, 'system', 'Welcome.', 'welcome:1') "
             "RETURNING id, actor_id, created_at, read_at"
         ),
         {"recipient_id": recipient.id},
@@ -73,10 +74,10 @@ def test_read_timestamp_round_trips_with_timezone(session, notification):
     assert notification.read_at == read_at
 
 
-@pytest.mark.parametrize("field", ["recipient_id", "event_type", "message", "created_at"])
+@pytest.mark.parametrize("field", ["recipient_id", "event_type", "message", "event_key", "created_at"])
 def test_required_fields_reject_null(session, users, field):
     recipient, _ = users
-    values = {"recipient_id": recipient.id, "event_type": "system", "message": "Welcome."}
+    values = {"recipient_id": recipient.id, "event_type": "system", "message": "Welcome.", "event_key": "welcome:1"}
     values[field] = None
 
     # A Core INSERT sends explicit NULL even for the server-default column.
@@ -90,7 +91,7 @@ def test_required_fields_reject_null(session, users, field):
 @pytest.mark.parametrize("field", ["recipient_id", "actor_id"])
 def test_foreign_keys_reject_unknown_users(session, users, field):
     recipient, actor = users
-    values = {"recipient_id": recipient.id, "actor_id": actor.id, "event_type": "friend_request", "message": "Hello."}
+    values = {"recipient_id": recipient.id, "actor_id": actor.id, "event_type": "friend_request", "message": "Hello.", "event_key": "friend-request:1"}
     values[field] = -1
     session.add(Notification(**values))
 
@@ -142,6 +143,11 @@ def test_migrated_schema_has_bigint_key_timezone_columns_and_one_composite_index
     assert schema.get_pk_constraint("notifications")["constrained_columns"] == ["id"]
     assert columns["created_at"]["type"].timezone
     assert columns["read_at"]["type"].timezone
+    assert not columns["event_key"]["nullable"]
+    assert columns["event_key"]["type"].length == 255
+    assert {constraint["name"]: constraint["column_names"] for constraint in schema.get_unique_constraints("notifications")} == {
+        "uq_notifications_recipient_event_key": ["recipient_id", "event_key"],
+    }
     indexes = [index for index in schema.get_indexes("notifications") if not index.get("duplicates_constraint")]
     assert len(indexes) == 1
     assert indexes[0]["column_names"] == ["recipient_id", "created_at"]
