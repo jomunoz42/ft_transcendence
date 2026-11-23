@@ -38,7 +38,10 @@ Major modules count as 2 points. Minor modules count as 1 point. The project mus
 
 | Module | Type | Points | Justification | Implementation | Contributor(s) |
 | --- | --- | ---: | --- | --- | --- |
+| Prometheus and Grafana monitoring | Major | 2 | Backend metrics, a provisioned dashboard with live request, latency, and WebSocket data, an availability alert that fires and recovers, and authenticated localhost-only Grafana access survived a restart. | [Monitoring guide](monitoring/README.md) and [live acceptance evidence](monitoring/acceptance-evidence.md) | TODO |
 | TODO | TODO | TODO | TODO | TODO | TODO |
+
+Validated module points listed above: 2
 
 Total planned points: TODO
 

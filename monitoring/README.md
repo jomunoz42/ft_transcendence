@@ -10,7 +10,7 @@ Prometheus collects metrics exposed by the backend. Grafana visualizes these met
 | --- | --- | --- |
 | Prometheus | Metrics collection and querying | http://localhost:9090 |
 | Grafana | Dashboards and alerting | http://localhost:3000 |
-| Backend | Application metrics | http://localhost:8000/metrics |
+| Backend | Application metrics | `http://backend:8000/metrics` inside the Compose network |
 
 Prometheus scrapes the backend every 15 seconds. Grafana uses Prometheus as its default datasource.
 
@@ -79,38 +79,81 @@ The alert is intended for environments where backend availability is expected. I
 
 Alert status is visible within Grafana. External notification delivery and automatic service recovery are not configured.
 
-## Validation
+## Acceptance checklist (issue #59)
 
-Verify backend health:
+Run this checklist in a disposable checkout on an isolated host with ports 80,
+443, 5432, 3000, and 9090 free. Copy `.env.example` to `.env` in that checkout.
+Add a unique `COMPOSE_PROJECT_NAME=ft59-accept-<unique-id>` so its database and
+Grafana volumes cannot overlap another deployment. Set a strong, unique
+`GRAFANA_ADMIN_PASSWORD`, and update `POSTGRES_PASSWORD` and `DATABASE_URL`
+together. The commands below use Docker Compose v2; substitute `docker-compose`
+if only v1 is installed. Never use `down -v` or `make db-reset` for this check.
+On a busy host, use a disposable copy of `docker-compose.yml` in this checkout
+with all published ports remapped to unused loopback ports. Inspect
+`docker compose -f <copy> config` before starting it, and add `-f <copy>` to
+each Compose command below.
 
-```bash
-curl -fsS http://localhost:8000/health
-```
+1. **Collect application metrics.** Start the disposable stack with
+   `docker compose up -d --build` and confirm all services with
+   `docker compose ps`. The backend is internal to Compose: host port 8000 is
+   not published, and Caddy does not proxy `/health` or `/metrics`. Check them
+   from inside the backend container:
 
-Verify Prometheus readiness:
+   ```bash
+   docker compose exec -T backend python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/health").read().decode())'
+   docker compose exec -T backend python -c 'import urllib.request; body=urllib.request.urlopen("http://127.0.0.1:8000/metrics").read().decode(); assert "myplaylist_http_requests_total" in body; print("backend metrics present")'
+   ```
 
-```bash
-curl -fsS http://localhost:9090/-/ready
-```
+   Health should report `"status":"ok"`. After at least two Prometheus
+   scrapes (30–45 seconds), run the read-only check below. It checks Prometheus
+   readiness, `up{job="myplaylist-backend"} == 1`, the HTTP and WebSocket metric
+   series, Grafana API authentication, and provisioned resources. It only makes
+   GET requests; it does not change containers or data. Enter the password from
+   the disposable `.env` when prompted (it is not saved by the script):
 
-Check whether Prometheus can scrape the backend:
+   ```bash
+   read -r -s -p 'Grafana admin password: ' GRAFANA_ADMIN_PASSWORD; echo
+   export GRAFANA_ADMIN_PASSWORD
+   python3 monitoring/check_readonly.py
+   unset GRAFANA_ADMIN_PASSWORD
+   ```
 
-```bash
-curl -fsS -G http://localhost:9090/api/v1/query \
-  --data-urlencode 'query=up{job="myplaylist-backend"}'
-```
+   The script exits nonzero on a failed check. Its default URLs are
+   `http://127.0.0.1:9090` and `http://127.0.0.1:3000`; use `--prometheus-url`
+   and `--grafana-url` if the isolated host uses different local ports.
 
-A result value of `"1"` indicates a successful scrape.
+2. **Display live dashboard data.** Sign in at `http://127.0.0.1:3000` with
+   the configured admin credentials. Open **Dashboards > MyPlaylist >
+   MyPlaylist — Backend Overview**. Make several HTTPS application requests,
+   wait two more scrapes, and confirm request rate and p95 latency show recent
+   samples. The active WebSocket panel should show zero with no client; open an
+   authenticated application tab to observe a connection, then close it and
+   observe the count fall. A 5xx series is absent until a server error occurs.
 
-To validate the alert lifecycle in a local test environment:
+3. **Exercise the availability alert.** In this disposable project only, run
+   `docker compose stop backend`. Confirm Prometheus reports `up == 0`, then
+   watch **Alerting > Alert rules > MyPlaylist > Backend availability** move
+   from Normal to Pending to Firing. Allow approximately three minutes for the
+   15-second scrape, 30-second evaluation, and two-minute pending period. Run
+   `docker compose up -d backend`, confirm `up == 1`, and wait for the alert
+   to return to Normal. Record the observed states and times. This step
+   intentionally interrupts the disposable application. Query `up` after each
+   change with:
 
-1. Keep Grafana and Prometheus running.
-2. Stop the backend using `docker-compose stop backend`.
-3. Wait for the alert to transition from Normal to Pending and then Firing.
-4. Restore the backend using `docker-compose up -d backend`.
-5. Verify backend health and confirm the alert returns to Normal.
+   ```bash
+   curl -fsSG http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=up{job="myplaylist-backend"}'
+   ```
 
-This procedure temporarily interrupts the application and should only be performed in an appropriate test environment.
+4. **Check Grafana access.** Confirm an unauthenticated request to
+   `http://127.0.0.1:3000/api/search` receives HTTP 401 (the script does this),
+   while the configured credentials permit dashboard access. Confirm the
+   Grafana and Prometheus ports are bound to `127.0.0.1` in `docker compose ps`.
+
+5. **Check provisioning after restart.** Run `docker compose restart grafana`
+   in the disposable project. Once Grafana is ready, rerun the read-only script
+   with `GRAFANA_ADMIN_PASSWORD` set as above. Confirm the datasource,
+   four-panel dashboard, and alert rule still appear in Grafana. Record these
+   results before claiming the module's two points in the root README.
 
 ## Configuration
 
