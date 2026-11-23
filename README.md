@@ -55,6 +55,8 @@ erDiagram
 | `top10_comments` | Comments on a Top 10 | `top10_owner_id`, `author_id`, `body` (never blank) |
 | `top10_reactions` | Like or dislike on a Top 10 | one reaction per user per Top 10; `like` or `dislike` only; not on your own Top 10 |
 
+Types: ids and foreign keys are `BIGINT`, text fields are `VARCHAR`, times are `TIMESTAMPTZ` (with time zone), flags are `BOOLEAN`, other numbers (`rank`, `failed_login_count`, `duration_ms`) are `INTEGER`, and `songs.metadata` is `JSON`.
+
 Deleting a user's row deletes their profile, sessions, Top 10, friendships, blocks, comments and reactions (`ON DELETE CASCADE`). Deleting an account from the app is a soft delete (`deleted_at`) for now; removing the data is part of #57. A song cannot be deleted while it is in someone's Top 10 (`ON DELETE RESTRICT`).
 
 The rules above are enforced by PostgreSQL itself (unique indexes, `CHECK` constraints, foreign keys), not only by the application code, so concurrent requests cannot break them.
