@@ -174,7 +174,6 @@ checkout, then run:
 
 ```bash
 curl --cacert .scratch/caddy-root.crt --fail-with-body https://localhost/
-curl --cacert .scratch/caddy-root.crt --fail-with-body https://localhost/health
 curl --cacert .scratch/caddy-root.crt --fail-with-body -i https://localhost/api/v1/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"deployment-smoke@example.com","password":"smoke-password-48","display_name":"Deployment smoke"}'
