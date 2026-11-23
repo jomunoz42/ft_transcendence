@@ -19,6 +19,7 @@ import MemberProfilePage from '../pages/ProfilePage.tsx'
 import SettingsPage from '../pages/SettingsPage.tsx'
 import PrivacyPage from '../pages/PrivacyPage.tsx'
 import TermsPage from '../pages/TermsPage.tsx'
+import SearchPage from '../pages/SearchPage.tsx'
 import { useWebSocket } from '../websocket/useWebSocket.ts'
 import {
   currentPath,
@@ -239,6 +240,8 @@ export default function App() {
         onWarning={showHeaderWarning}
       />
     )
+  } else if (path === '/search') {
+    page = <SearchPage onSessionExpired={handleSessionExpired} />
   } else if (path === '/settings') {
     page = (
       <SettingsPage

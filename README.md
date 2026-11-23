@@ -71,6 +71,9 @@ Fill in the local values in `.env`. This file contains local configuration and s
 See [realtime development](docs/realtime.md) for WebSocket origins, HTTPS,
 presence events, logout behavior, and integration tests.
 
+See [advanced song search](docs/advanced-search.md) for the PostgreSQL search API,
+offline demo seed, frontend controls, and verification commands.
+
 ### Run
 
 Build and start the complete application:

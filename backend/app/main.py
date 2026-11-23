@@ -50,6 +50,8 @@ from app.routes.v1.songs import router as songs
 app.include_router(songs, prefix="/api/v1/songs")
 from app.routes.v1.notifications import router as notifications
 app.include_router(notifications, prefix="/api/v1/notifications")
+from app.routes.v1.search import router as search
+app.include_router(search, prefix="/api/v1/search")
 
 @app.get("/metrics", include_in_schema=False)
 def metrics():
