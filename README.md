@@ -76,6 +76,12 @@ Build and start the complete application:
 make up
 ```
 
+Compose waits for PostgreSQL to become healthy, then the backend applies pending
+Alembic migrations before starting the API. No manual `make migrate` is needed.
+Each backend start checks for pending migrations; an up-to-date database keeps
+its existing data. If migration fails, the backend logs the error and exits
+without serving requests (Compose's restart policy retries it).
+
 Open `https://localhost` (or `https://127.0.0.1`) after trusting the local
 certificate as described below. Caddy redirects HTTP on port 80 to HTTPS on
 port 443, serves Vite, and forwards `/api/*` and `/ws` to FastAPI, including
@@ -144,6 +150,48 @@ make status
 make test
 make migrate
 ```
+
+### Fresh-deployment smoke test
+
+Use a separate checkout and a new, unique Compose project name to isolate
+the database and Caddy certificate volumes. Ensure ports 80, 443, 5432,
+3000 and 9090 are free. Never run `make db-reset` or `down -v` against
+your normal project.
+
+In the disposable checkout, configure `.env` from `.env.example`, including
+`GRAFANA_ADMIN_PASSWORD` and the HTTPS WebSocket origins, then:
+
+```bash
+# Save the unique project name in this checkout's .env for all terminals.
+printf '\nCOMPOSE_PROJECT_NAME=ft48-smoke-%s\n' "$(date +%s)" >> .env
+make up
+```
+
+Wait for Alembic migration logs followed by Uvicorn's startup message.
+Caddy uses its own local CA for this isolated Compose project. Export the
+certificate using the instructions in "Trust local HTTPS" above, from this
+checkout, then run:
+
+```bash
+curl --cacert .scratch/caddy-root.crt --fail-with-body https://localhost/
+curl --cacert .scratch/caddy-root.crt --fail-with-body https://localhost/health
+curl --cacert .scratch/caddy-root.crt --fail-with-body -i https://localhost/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"deployment-smoke@example.com","password":"smoke-password-48","display_name":"Deployment smoke"}'
+```
+
+Registration must return HTTP 201; save the returned user ID. Run `make down`
+and then `make up` again, keeping the same `.env` and volumes. Once ready:
+
+```bash
+curl --cacert .scratch/caddy-root.crt --fail-with-body -i https://localhost/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"deployment-smoke@example.com","password":"smoke-password-48"}'
+```
+
+Login must return HTTP 200 with the same user ID and display name, proving the
+account and profile survived. Stop the disposable stack with `make down`.
+Do not remove the normal project's volumes.
 
 ## Resources
 
