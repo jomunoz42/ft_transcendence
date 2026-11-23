@@ -39,7 +39,7 @@ def login_with_42(session: Session, profile: dict) -> User:
         raise errors.http_422_registration("email", "missing or invalid in the 42 profile")
     user = User(email=email, password_hash=None)
     user.profile = Profile(display_name=profile["login"])
-    session.flush()  # keep: the caller's pending errors must not be blamed on this insert
+    session.flush()  # keep: flushes only the caller's pending work; user is not in the session yet, it is inserted with the link inside the savepoint
     try:
         with session.begin_nested():
             session.add(OAuthAccount(provider=PROVIDER_42, provider_id=str(profile["id"]), user=user))
