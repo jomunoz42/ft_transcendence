@@ -17,10 +17,12 @@ from app.notifications import record_action
 from app.realtime.notifications import get_notifications_notifier
 from app.routes.v1.friendships import send_request
 
+SOCIAL_EMAILS = [f"social{i}@example.test" for i in range(3)]
+
 
 @pytest.fixture
 def social(session, client):
-    users = [User(email=f"social{i}@example.test", password_hash="hash", profile=Profile(display_name=f"User {i}")) for i in range(3)]
+    users = [User(email=email, password_hash="hash", profile=Profile(display_name=f"User {i}")) for i, email in enumerate(SOCIAL_EMAILS)]
     session.add_all(users)
     session.flush()
     tokens = [start_session(session, user) for user in users]
@@ -40,7 +42,10 @@ def delivered():
 
 
 def rows(session):
-    return list(session.scalars(select(Notification).order_by(Notification.id)))
+    # The legacy smoke suite commits notifications for its sample users.
+    # Inspect only this test's recipients so those rows cannot pollute assertions.
+    recipients = select(User.id).where(User.email.in_(SOCIAL_EMAILS))
+    return list(session.scalars(select(Notification).where(Notification.recipient_id.in_(recipients)).order_by(Notification.id)))
 
 
 def befriend(session, users):
