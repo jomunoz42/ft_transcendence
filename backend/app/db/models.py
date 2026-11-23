@@ -218,8 +218,8 @@ class Notification(Base):
     actor_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
     event_type: Mapped[str] = mapped_column(String, nullable=False)
     message: Mapped[str] = mapped_column(String, nullable=False)
-    # Nullable for notifications predating deduplication; required by the service.
-    event_key: Mapped[str | None] = mapped_column(String(255))
+    # Required for recipient-scoped event deduplication.
+    event_key: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     read_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
