@@ -3,8 +3,7 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 from app.auth.current_user import current_user
 from app.db.models import User
-from app.crud.friendship import are_friends
-from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate
+from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate, _can_interact
 from app import errors
 
 router = APIRouter()
@@ -16,18 +15,20 @@ def get_comments(user_id: int, session: Session = Depends(get_session), current_
 
 @router.post("/{user_id}/comments")
 def add_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	is_friend = are_friends(session=session, a=user_id, b=current_user.id)
-	# TODO: Add a possibility for non-friend but public top 10 to be commented, unless blocked
-	if not is_friend:
+	if not _can_interact(session, user_id, current_user):
 		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
 	comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user)
 	session.commit()
+	session.refresh(comment)
 	return comment
 
 @router.post("/{user_id}/comments/{comment_id}")
 def edit_comment(comment_id: int, user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+	if not _can_interact(session, user_id, current_user):
+		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
 	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
 	session.commit()
+	session.refresh(comment)
 	return comment
 
 @router.delete("/{user_id}/comments/{comment_id}")

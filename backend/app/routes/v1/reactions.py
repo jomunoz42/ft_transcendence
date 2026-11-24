@@ -16,6 +16,7 @@ def get_reactions(user_id: int, session: Session = Depends(get_session), current
 def add_reaction(user_id: int, req: ReactionCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	reaction = create_reaction(user_id=user_id, reaction=req.reaction, session=session, current_user=current_user)
 	session.commit()
+	session.refresh(reaction)
 	return reaction
 
 @router.delete("/{user_id}/reactions")
