@@ -15,7 +15,7 @@ from app.db import get_session
 from app.db.models import User
 from app.deletion import (
     DeletionConfigurationError, DeletionRateLimited, DeletionTokenCodec,
-    InvalidDeletionToken, confirm_and_delete, create_deletion_request,
+    InvalidDeletionToken, REQUEST_COOLDOWN, confirm_and_delete, create_deletion_request,
 )
 from app.mail import MailDeliveryError, SMTPMailer, get_mailer
 from app.privacy import build_user_export
@@ -93,7 +93,11 @@ def request_deletion(
         session.rollback()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Account is no longer active") from None
     response.headers["Cache-Control"] = "no-store"
-    return {"detail": "Check your email for the deletion confirmation token"}
+    return {
+        "detail": "Check your email for the deletion confirmation token",
+        "expires_at": expires_at.isoformat(),
+        "cooldown_seconds": int(REQUEST_COOLDOWN.total_seconds()),
+    }
 
 
 @router.post("/deletion-confirm", status_code=status.HTTP_204_NO_CONTENT)

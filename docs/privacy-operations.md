@@ -34,6 +34,15 @@ stored. A user can request another email after a five-minute cooldown. The
 endpoint returns `202` without the token, or `503` without creating a usable
 request if SMTP delivery fails. Tokens belong in the JSON request body, never
 in a URL or server log.
+Closing or cancelling the frontend form does not revoke an already emailed
+token; it remains usable by the authenticated account until it expires or is
+replaced. No deletion occurs without the separate confirmation request.
+The `202` response includes `expires_at` and `cooldown_seconds` for the
+settings interface. Expired challenge rows for other accounts are removed
+opportunistically when a new request is made; the requesting account's row is
+replaced. The token lifetime exceeds the cooldown, so cleanup
+does not bypass rate limiting. Accounts soft-deleted before this flow are not
+automatically hard-deleted; their remediation needs a separate review and plan.
 
 `POST /api/v1/privacy/deletion-confirm` requires that same account's live
 session and JSON `{ "token": "...", "confirmation": "DELETE" }`. A valid token
@@ -50,3 +59,5 @@ After commit, the browser session cookie is cleared and a completion email is
 attempted. Completion email failure is logged without personal data; deletion
 still returns success. Existing WebSocket sessions become invalid when their
 database-backed session checks run.
+Authenticated REST actions check the database-backed session on every request,
+including during the WebSocket revalidation interval.

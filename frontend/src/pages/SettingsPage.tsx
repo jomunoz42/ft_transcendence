@@ -4,6 +4,7 @@ import {
 } from 'react'
 
 import SectionHeading from '../components/SectionHeading.tsx'
+import PrivacySettings from '../components/PrivacySettings.tsx'
 import {
   api,
   getErrorMessage,
@@ -14,6 +15,7 @@ import {
 type SettingsPageProps = {
   user: User
   onDisplayNameChange: (displayName: string) => void
+  onAccountDeleted: () => void
 }
 
 function getInitialDisplayName(user: User) {
@@ -23,6 +25,7 @@ function getInitialDisplayName(user: User) {
 export default function SettingsPage({
   user,
   onDisplayNameChange,
+  onAccountDeleted,
 }: SettingsPageProps) {
   const initialDisplayName = getInitialDisplayName(user)
 
@@ -227,6 +230,8 @@ export default function SettingsPage({
           />
         </label>
       </section>
+
+      <PrivacySettings onAccountDeleted={onAccountDeleted} />
     </div>
   )
 }

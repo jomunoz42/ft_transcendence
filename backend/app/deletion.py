@@ -111,6 +111,12 @@ def create_deletion_request(
     """Stage a new challenge; the route sends email before committing it."""
     user = _lock_active_user(session, user_id)
     now = now_utc()
+    # Expired challenges are already beyond the shorter request cooldown.
+    # Remove them during normal use without adding a background worker.
+    session.execute(delete(DeletionRequest).where(
+        DeletionRequest.expires_at <= now,
+        DeletionRequest.user_id != user_id,
+    ))
     row = session.get(DeletionRequest, user_id)
     if row is not None and now < row.requested_at + REQUEST_COOLDOWN:
         remaining = row.requested_at + REQUEST_COOLDOWN - now

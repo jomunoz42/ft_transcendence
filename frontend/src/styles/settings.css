@@ -53,6 +53,46 @@
   line-height: 1.6;
 }
 
+.settings-privacy-card {
+  grid-column: 1 / -1;
+}
+
+.privacy-action + .privacy-action {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.privacy-action h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.privacy-action p {
+  max-width: 75ch;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.privacy-confirmation {
+  max-width: 560px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.privacy-existing-token {
+  margin-left: 12px;
+}
+
+.privacy-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 @media (max-width: 1050px) {
   .settings-grid {
     gap: 15px;

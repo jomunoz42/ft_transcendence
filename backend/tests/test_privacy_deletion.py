@@ -69,6 +69,8 @@ def request_token(client, mailer):
     response = client.post(REQUEST)
     assert response.status_code == 202
     assert response.headers["cache-control"] == "no-store"
+    assert datetime.datetime.fromisoformat(response.json()["expires_at"]).tzinfo is not None
+    assert response.json()["cooldown_seconds"] == 300
     body = mailer.sent[-1][2]
     found = re.search(r"confirm deletion:\n\n([A-Za-z0-9_.-]+)\n\n", body)
     assert found is not None
@@ -143,6 +145,22 @@ def test_request_is_rate_limited_and_new_token_invalidates_old_one(session, clie
     assert second != first
     assert confirm(client, first).status_code == 400
     assert confirm(client, second).status_code == 204
+
+
+def test_new_request_cleans_other_expired_challenges_without_bypassing_cooldown(session, client, mailer):
+    alice = make_user(session, "alice@deletion.test")
+    bob = make_user(session, "bob@deletion.test")
+    bob_id = bob.id
+    old = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+    session.add(DeletionRequest(
+        user_id=bob_id, token_hash="old-hash", requested_at=old,
+        expires_at=old + datetime.timedelta(minutes=15),
+    ))
+    log_in(session, client, alice)
+    request_token(client, mailer)
+    assert session.get(DeletionRequest, bob_id) is None
+    assert client.post(REQUEST).status_code == 429
+    assert count_for(session, "users", "id", bob_id) == 1
 
 
 @pytest.mark.parametrize("bad_token", ["tampered", "truncated"])
@@ -262,6 +280,13 @@ def test_hard_delete_cascades_and_anonymizes_retained_notifications(session, cli
     assert user_for_token(session, first_token) is None
     assert user_for_token(session, second_token) is None
     assert user_for_token(session, bob_token) is not None
+    # HTTP authorization checks the database on every request, even before
+    # an existing WebSocket's next revalidation tick.
+    client.cookies.set(SESSION_COOKIE_NAME, first_token)
+    assert client.post("/api/v1/privacy/export").status_code == 401
+    assert client.post("/api/v1/profiles/me", json={"display_name": "Ghost"}).status_code == 401
+    client.cookies.set(SESSION_COOKIE_NAME, second_token)
+    assert client.post("/api/v1/privacy/deletion-request").status_code == 401
     monkeypatch.setattr(websocket_auth, "SessionLocal", lambda: nullcontext(session))
     assert websocket_auth.authenticate_websocket(first_token) is None
     assert websocket_auth.authenticate_websocket(second_token) is None
