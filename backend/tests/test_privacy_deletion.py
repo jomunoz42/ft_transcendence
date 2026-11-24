@@ -228,6 +228,14 @@ def test_missing_signing_secret_does_not_issue_a_request(session, client, mailer
     assert mailer.sent == []
 
 
+def test_example_signing_secret_is_rejected(session, client, mailer, monkeypatch):
+    alice = make_user(session, "alice@deletion.test")
+    log_in(session, client, alice)
+    monkeypatch.setenv("PRIVACY_TOKEN_SECRET", "replace-with-at-least-32-random-characters")
+    assert client.post(REQUEST).status_code == 503
+    assert mailer.sent == []
+
+
 def test_hard_delete_cascades_and_anonymizes_retained_notifications(session, client, mailer, monkeypatch):
     alice = make_user(session, "alice@deletion.test")
     bob = make_user(session, "bob@deletion.test")

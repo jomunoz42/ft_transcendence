@@ -8,7 +8,7 @@ import json
 import os
 import secrets
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import DeletionRequest, Notification, User
@@ -46,7 +46,7 @@ def _decode(value: str) -> bytes:
 
 class DeletionTokenCodec:
     def __init__(self, secret: bytes):
-        if len(secret) < 32:
+        if len(secret) < 32 or secret == b"replace-with-at-least-32-random-characters":
             raise DeletionConfigurationError()
         self.secret = secret
 
@@ -141,6 +141,10 @@ def confirm_and_delete(
     session: Session, user_id: int, token: str, codec: DeletionTokenCodec,
 ) -> str:
     """Erase the account and anonymize retained notifications; caller commits."""
+    # Reciprocal notifications can otherwise deadlock when two accounts are
+    # erased together: each transaction updates a row the other must cascade.
+    # Keep this lock until commit, before taking either account row lock.
+    session.execute(select(func.pg_advisory_xact_lock(57, 1)))
     user = _lock_active_user(session, user_id)
     now = now_utc()
     codec.verify(token, user, now)
