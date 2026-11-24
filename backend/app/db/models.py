@@ -41,7 +41,7 @@ class User(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), nullable=False)
     locked_until: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
-    deleted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))  # GDPR soft-delete; NULL = active
+    deleted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))  # legacy soft-delete marker; confirmed deletion removes the row
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -225,6 +225,17 @@ class UserSession(Base):
     expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
+
+
+class DeletionRequest(Base):
+    """Latest emailed deletion challenge and its per-user rate-limit timestamp."""
+
+    __tablename__ = "privacy_deletion_requests"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class Notification(Base):

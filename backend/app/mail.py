@@ -9,6 +9,7 @@ import smtplib
 import ssl
 import math
 from dataclasses import dataclass
+from email.errors import MessageError
 from email.message import EmailMessage
 
 
@@ -53,13 +54,12 @@ class SMTPMailer:
     def send(self, recipient: str, subject: str, body: str) -> None:
         """Send one plain-text message; callers choose the operation-specific text."""
         settings = SMTPSettings.from_environment()
-        message = EmailMessage()
-        message["From"] = settings.sender
-        message["To"] = recipient
-        message["Subject"] = subject
-        message.set_content(body)
-
         try:
+            message = EmailMessage()
+            message["From"] = settings.sender
+            message["To"] = recipient
+            message["Subject"] = subject
+            message.set_content(body)
             if settings.security == "ssl":
                 connection = smtplib.SMTP_SSL(
                     settings.host, settings.port, timeout=settings.timeout,
@@ -73,7 +73,7 @@ class SMTPMailer:
                 if settings.username is not None:
                     smtp.login(settings.username, settings.password)
                 smtp.send_message(message)
-        except (OSError, smtplib.SMTPException, ssl.SSLError):
+        except (OSError, smtplib.SMTPException, ssl.SSLError, ValueError, UnicodeError, MessageError):
             raise MailDeliveryError("Email could not be sent") from None
 
     def send_export_confirmation(self, recipient: str) -> None:

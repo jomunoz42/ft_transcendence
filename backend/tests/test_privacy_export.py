@@ -68,7 +68,7 @@ def test_empty_export_is_readable_versioned_and_delivered_to_account_email(sessi
     assert response.content.endswith(b"\n")
     assert b"\n  \"account\"" in response.content
     exported = json.loads(response.content)
-    assert exported["format_version"] == 1
+    assert exported["format_version"] == 2
     assert exported["exported_at"]
     assert exported["account"]["email"] == "alice@privacy.test"
     assert set(exported["account"]) == {
@@ -76,6 +76,7 @@ def test_empty_export_is_readable_versioned_and_delivered_to_account_email(sessi
         "deleted_at", "created_at", "updated_at",
     }
     assert exported["profile"]["display_name"] == "Alice"
+    assert exported["deletion_request"] is None
     for section in ("top10", "friendships", "blocks", "authored_comments", "reactions", "received_notifications"):
         assert exported[section] == []
     assert mailer.recipients == ["alice@privacy.test"]
