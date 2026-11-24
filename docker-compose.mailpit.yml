@@ -1,0 +1,16 @@
+# Optional local email capture: docker compose -f docker-compose.yml -f docker-compose.mailpit.yml up
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:8025:8025"
+  backend:
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: no-reply@myplaylist.local
+      SMTP_SECURITY: none
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+    depends_on:
+      - mailpit
