@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db import get_session
 from app.auth.current_user import current_user
+from app.db.models import User
 from app.crud.reaction import create_reaction, read_reactions, delete_reaction, ReactionCreate
 
 router = APIRouter()

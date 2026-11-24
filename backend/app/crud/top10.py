@@ -79,16 +79,28 @@ def update_top10(user_id: int, top10_id: int, data: Top10Update, session: Sessio
 		raise errors.HTTP_404_NOT_FOUND
 	if entry.rank == data.rank:
 		return entry
-	# If another entry has this rank, swap them
+	old_rank = entry.rank
+	new_rank = data.rank
 	other = session.query(Top10Entry).filter(
-		and_(Top10Entry.user_id == user_id, Top10Entry.rank == data.rank)
+		and_(Top10Entry.user_id == user_id, Top10Entry.rank == new_rank)
 	).first()
 	if other:
-		other.rank = entry.rank
+		# Swap: delete both, flush to free the ranks, re-insert with swapped ranks
+		entry_song_id = entry.song_id
+		other_song_id = other.song_id
+		session.delete(entry)
+		session.delete(other)
 		session.flush()
-	entry.rank = data.rank
-	session.flush()
-	return entry
+		new_entry = Top10Entry(user_id=user_id, song_id=entry_song_id, rank=new_rank)
+		new_other = Top10Entry(user_id=user_id, song_id=other_song_id, rank=old_rank)
+		session.add(new_entry)
+		session.add(new_other)
+		session.flush()
+		return new_entry
+	else:
+		entry.rank = new_rank
+		session.flush()
+		return entry
 
 def delete_top10(user_id: int, top10_id: int, session: Session):
 	entry = session.query(Top10Entry).filter(
