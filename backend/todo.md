@@ -36,6 +36,10 @@
    - [x] POST/GET /api/v1/profiles/{user_id}/comments
    - [x] POST/DELETE /api/v1/profiles/{user_id}/comments/{comment_id}
    - [x] POST/GET/DELETE /api/v1/profiles/{user_id}/reactions
+   - [x] Friendship or public top10 required to comment, react, read comments/reactions
+   - [x] Edit comment requires friendship or public top10 (blocked after unfriending private profile)
+   - [x] Delete comment: author always can, top10 owner can delete anyone's
+   - [x] Delete reaction: author-only
 7. Song search API
    - [x] GET /api/v1/songs/search?q=... — search by title/artist
    - [x] Integration with external music API (Spotify/Deezer)
