@@ -100,6 +100,11 @@ def test_five_wrong_passwords_at_once_still_lock_the_account(isolated_db):
     log_in("alice@x.com")
     wrong = {"email": "alice@x.com", "password": "wrong-pass"}
 
-    all_at_once([lambda b=browser(): b.post(f"{API}/auth/login", json=wrong) for _ in range(BROWSERS)])
+    responses = all_at_once([lambda b=browser(): b.post(f"{API}/auth/login", json=wrong) for _ in range(BROWSERS)])
 
+    assert [r.status_code for r in responses] == [401] * BROWSERS
+    with isolated_db() as session:
+        user = session.scalars(select(User).where(User.email == "alice@x.com")).one()
+        assert session.scalar(select(User.locked_until > func.now()).where(User.id == user.id))
+        assert user.failed_login_count == 0
     assert browser().post(f"{API}/auth/login", json={"email": "alice@x.com", "password": "hunter22"}).status_code == 401

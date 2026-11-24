@@ -10,24 +10,24 @@ ALICE = {"email": "alice@x.com", "password": "hunter22", "display_name": "Alice"
 BOB = {"email": "bob@x.com", "password": "hunter33", "display_name": "Bob"}
 
 ROUTES = [
-    ("POST", "/auth/register", {"email": "carol@x.com", "password": "hunter44", "display_name": "Carol"}),
-    ("POST", "/auth/login", {"email": "alice@x.com", "password": "hunter22"}),
-    ("GET", "/auth/me", None),
-    ("GET", "/settings", None),
-    ("POST", "/settings", {}),
-    ("GET", "/profiles", None),
-    ("GET", "/profiles/me", None),
-    ("POST", "/profiles/me", {}),
-    ("GET", "/profiles/{bob}", None),
-    ("GET", "/profiles/{bob}/comments", None),
-    ("GET", "/profiles/{bob}/reactions", None),
-    ("POST", "/profiles/{bob}/comments", {"body": "nice list"}),
-    ("POST", "/profiles/{bob}/reactions", {"reaction": "like"}),
-    ("POST", "/profiles/{bob}/comments/{comment}", {"body": "edited"}),
-    ("POST", "/profiles/{bob}/comments/latest", {"body": "edited again"}),
-    ("GET", "/friends", None),
-    ("GET", "/friends/requests", None),
-    ("GET", "/friends/blocks", None),
+    ("POST", "/auth/register", {"email": "carol@x.com", "password": "hunter44", "display_name": "Carol"}, 201),
+    ("POST", "/auth/login", {"email": "alice@x.com", "password": "hunter22"}, 200),
+    ("GET", "/auth/me", None, 200),
+    ("GET", "/settings", None, 200),
+    ("POST", "/settings", {}, 200),
+    ("GET", "/profiles", None, 200),
+    ("GET", "/profiles/me", None, 200),
+    ("POST", "/profiles/me", {}, 200),
+    ("GET", "/profiles/{bob}", None, 200),
+    ("GET", "/profiles/{bob}/comments", None, 200),
+    ("GET", "/profiles/{bob}/reactions", None, 200),
+    ("POST", "/profiles/{bob}/comments", {"body": "nice list"}, 200),
+    ("POST", "/profiles/{bob}/reactions", {"reaction": "like"}, 200),
+    ("POST", "/profiles/{bob}/comments/{comment}", {"body": "edited"}, 200),
+    ("POST", "/profiles/{bob}/comments/latest", {"body": "edited again"}, 200),
+    ("GET", "/friends", None, 200),
+    ("GET", "/friends/requests", None, 200),
+    ("GET", "/friends/blocks", None, 200),
 ]
 
 
@@ -51,12 +51,12 @@ def alice(client):
     return client, {"bob": bob_id, "comment": comment_id}
 
 
-@pytest.mark.parametrize(("method", "path", "body"), ROUTES, ids=[f"{m} {p}" for m, p, _ in ROUTES])
-def test_no_response_contains_a_password_hash(alice, method, path, body):
+@pytest.mark.parametrize(("method", "path", "body", "status"), ROUTES, ids=[f"{m} {p}" for m, p, _, _ in ROUTES])
+def test_no_response_contains_a_password_hash(alice, method, path, body, status):
     client, ids = alice
 
     response = client.request(method, API + path.format(**ids), json=body, follow_redirects=True)
 
-    assert response.status_code < 500
+    assert response.status_code == status, response.text
     assert "password_hash" not in response.text
     assert "$argon2" not in response.text
