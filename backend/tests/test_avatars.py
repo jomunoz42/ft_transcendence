@@ -1,5 +1,6 @@
 """Avatar upload, serving, default and deletion over HTTP, against real Postgres."""
 
+import datetime
 import io
 
 import pytest
@@ -85,6 +86,7 @@ def test_avatars_need_a_login(client, alice):
     upload(client, image_bytes("PNG"))
     client.cookies.clear()
     assert upload(client, image_bytes("PNG")).status_code == 401
+    assert client.delete(UPLOAD).status_code == 401
     assert client.get(f"/api/v1/avatars/{alice.id}").status_code == 401
 
 
@@ -129,7 +131,7 @@ def test_deleting_my_avatar_shows_the_default_again(client, alice):
 
 
 def test_avatar_url_cannot_be_set_by_hand(client, alice):
-    client.post("/api/v1/profiles/me", json={"avatar_url": "https://tracker.example/pixel.png"})
+    assert client.post("/api/v1/profiles/me", json={"avatar_url": "https://tracker.example/pixel.png"}).status_code == 200
     assert client.get("/api/v1/profiles/me").json()["avatar_url"] == DEFAULT_URL
 
 
@@ -149,3 +151,12 @@ def test_deleting_the_user_deletes_their_avatar(session, client, alice):
     upload(client, image_bytes("PNG"))
     session.execute(delete(User).where(User.id == alice.id))
     assert session.scalar(select(func.count()).select_from(Avatar).where(Avatar.user_id == alice.id)) == 0
+
+
+def test_a_deleted_account_avatar_is_no_longer_served(session, client, alice):
+    url = upload(client, image_bytes("PNG")).json()["avatar_url"]
+    bob = make_user(session, "bob@avatar.test")
+    client.cookies.set(SESSION_COOKIE_NAME, start_session(session, bob))
+    alice.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    session.commit()
+    assert client.get(url).status_code == 404

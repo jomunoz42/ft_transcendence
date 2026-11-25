@@ -20,7 +20,7 @@ DEFAULT_AVATAR_SVG = (
     b'<path d="M40 232c0-48.6 39.4-88 88-88s88 39.4 88 88z" fill="#9aa1ab"/>'
     b'</svg>'
 )
-TOO_LARGE = HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Avatar must be at most 2 MB and 5000x5000 pixels")
+TOO_LARGE = HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Avatar must be at most 2 MB and 25 million pixels")
 NOT_AN_IMAGE = HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Avatar must be a PNG, JPEG or WebP image")
 
 
