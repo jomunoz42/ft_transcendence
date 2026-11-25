@@ -194,13 +194,14 @@ class Top10Reaction(Base):
 
 
 class Message(Base):
-    """A private chat message; deleting the sender or the recipient deletes it."""
+    """A private chat message; deleting the sender or the recipient deletes it. Soft-deleted users keep their rows until the GDPR purge, so reads must filter deleted_at."""
 
     __tablename__ = "messages"
     __table_args__ = (
         CheckConstraint("body ~ '[^[:space:]]'", name="ck_messages_body_not_blank"),
         CheckConstraint("sender_id <> recipient_id", name="ck_messages_not_self"),
-        Index("ix_messages_sender_id_recipient_id_created_at", "sender_id", "recipient_id", "created_at"),
+        Index("ix_messages_sender_id_recipient_id_created_at_id", "sender_id", "recipient_id", "created_at", "id"),
+        Index("ix_messages_recipient_id", "recipient_id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
