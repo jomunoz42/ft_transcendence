@@ -6,6 +6,8 @@ psycopg2-binary
 argon2-cffi
 requests
 prometheus-client
+pillow
+python-multipart
 
 # test dependencies
 pytest

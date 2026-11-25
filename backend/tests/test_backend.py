@@ -91,7 +91,7 @@ tests = [
 	),
 	(
 		Req(uri='/api/v1/profiles/{luna}', method='GET'),
-		Exp(status_code=200, body={"avatar_url": None, "display_name": "Luna", "bio": "Collecting books, playlists, and good memories.", "comments": [], "reactions": []}),
+		Exp(status_code=200, body={"avatar_url": "/api/v1/avatars/default", "display_name": "Luna", "bio": "Collecting books, playlists, and good memories.", "comments": [], "reactions": []}),
 	),
 	(
 		Req(uri='/api/v1/profiles/{luna}/comments', method='POST', body={"body": "Hello"}),
@@ -115,7 +115,7 @@ tests = [
 	),
 	(
 		Req(uri='/api/v1/profiles/me', method='GET'),
-		Exp(status_code=200, body={"display_name": "Victor", "avatar_url": None}),
+		Exp(status_code=200, body={"display_name": "Victor", "avatar_url": "/api/v1/avatars/default"}),
 	),
 	(
 		Req(uri='/api/v1/profiles/me', method='POST', body={"display_name": "bonjour"}),

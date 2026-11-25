@@ -5,7 +5,6 @@ from typing import Optional
 
 class ProfileUpdate(BaseModel):
 	display_name: Optional[str] = None
-	avatar_url: Optional[str] = None
 	bio: Optional[str] = None
 	is_top10_public: Optional[bool] = None
 

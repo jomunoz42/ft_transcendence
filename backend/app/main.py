@@ -54,6 +54,8 @@ from app.routes.v1.top10s import router as top10s
 app.include_router(top10s, prefix="/api/v1/profiles")
 from app.routes.v1.privacy import router as privacy
 app.include_router(privacy, prefix="/api/v1/privacy")
+from app.routes.v1.avatars import router as avatars
+app.include_router(avatars, prefix="/api/v1")
 
 @app.get("/metrics", include_in_schema=False)
 def metrics():
