@@ -17,9 +17,10 @@ _DUMMY_HASH = hash_password("no account has this password")
 
 def authenticate(session: Session, email: str, password: str) -> User:
     """The user these credentials belong to, else HTTP 401; the caller must commit even then."""
-    row = session.execute(
+    email = normalize_email(email)
+    row = None if "\x00" in email else session.execute(  # keep: PostgreSQL rejects NUL in text, which would be a 500
         select(User, func.coalesce(User.locked_until > func.now(), False))
-        .where(User.email == normalize_email(email), User.deleted_at.is_(None))
+        .where(User.email == email, User.deleted_at.is_(None))
         .with_for_update()
     ).one_or_none()
     user, locked = row if row else (None, False)

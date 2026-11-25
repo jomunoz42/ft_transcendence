@@ -15,6 +15,30 @@ from sqlalchemy.orm import Session
 
 from app.db import engine, get_session
 from app.main import app
+from known_bugs import KNOWN_BUGS
+
+
+def pytest_collection_modifyitems(items):
+    """Mark each test listed in known_bugs.py as a strict xfail that names its owner."""
+    for item in items:
+        if item.nodeid in KNOWN_BUGS:
+            owner, why = KNOWN_BUGS[item.nodeid]
+            item.add_marker(pytest.mark.xfail(strict=True, reason=f"{owner}: {why}"))
+
+
+def pytest_terminal_summary(terminalreporter):
+    """List the known bugs still failing, grouped by owner, at the end of the run."""
+    by_owner = {}
+    for report in terminalreporter.stats.get("xfailed", []):
+        if report.nodeid in KNOWN_BUGS:
+            owner, why = KNOWN_BUGS[report.nodeid]
+            by_owner.setdefault(owner, []).append(why)
+    if by_owner:
+        terminalreporter.section("known bugs by owner (tests/known_bugs.py)")
+        for owner, bugs in sorted(by_owner.items()):
+            terminalreporter.line(f"{owner}: {len(bugs)}")
+            for why in bugs:
+                terminalreporter.line(f"  - {why}")
 
 
 @pytest.fixture
