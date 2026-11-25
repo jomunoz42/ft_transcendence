@@ -1,7 +1,7 @@
 """Songs and Top 10 entries, verified against real Postgres."""
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models import Song, Top10Entry, User
@@ -60,6 +60,44 @@ def test_a_user_cannot_put_two_songs_at_the_same_rank(session):
 
     with pytest.raises(IntegrityError):
         session.flush()
+
+
+def two_ranked_entries(session):
+    """Return one user's entries at ranks 1 and 2, flushed so they have ids."""
+    user = make_user(session)
+    first = Top10Entry(user_id=user.id, song_id=make_song(session, "track-1").id, rank=1)
+    second = Top10Entry(user_id=user.id, song_id=make_song(session, "track-2").id, rank=2)
+    session.add_all([first, second])
+    session.flush()
+    return user, first, second
+
+
+def set_ranks(session, new_rank_by_id):
+    """Give several entries their new ranks in one ORM UPDATE statement."""
+    session.execute(
+        update(Top10Entry)
+        .where(Top10Entry.id.in_(new_rank_by_id))
+        .values(rank=case(new_rank_by_id, value=Top10Entry.id))
+    )
+
+
+def test_two_entries_swap_ranks_in_one_update_and_keep_their_ids(session):
+    user, first, second = two_ranked_entries(session)
+
+    set_ranks(session, {first.id: 2, second.id: 1})
+    session.expire_all()
+
+    rows = session.execute(
+        select(Top10Entry.id, Top10Entry.rank).where(Top10Entry.user_id == user.id).order_by(Top10Entry.id)
+    ).all()
+    assert rows == [(first.id, 2), (second.id, 1)]
+
+
+def test_one_update_still_cannot_leave_two_songs_at_the_same_rank(session):
+    _, first, second = two_ranked_entries(session)
+
+    with pytest.raises(IntegrityError):
+        set_ranks(session, {first.id: 3, second.id: 3})
 
 
 def test_a_user_cannot_rank_the_same_song_twice(session):
