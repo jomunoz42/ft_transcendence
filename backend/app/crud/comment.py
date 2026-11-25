@@ -8,7 +8,7 @@ from app.crud.notification import NotificationEvents
 from app.notifications import advance_updated_at, record_action
 
 
-def _can_interact(session: Session, owner_id: int, current_user: User) -> bool:
+def can_interact(session: Session, owner_id: int, current_user: User) -> bool:
 	"""True if current_user is the owner, friends with owner, or the owner's top10 is public — and not blocked."""
 	if owner_id == current_user.id:
 		return True
@@ -23,6 +23,8 @@ class CommentCreate(BaseModel):
 	body: str
 
 def create_comment(user_id: int, body: str, session: Session, current_user: User, events: NotificationEvents | None = None):
+	if not can_interact(session, user_id, current_user):
+		raise errors.HTTP_403_NOT_FRIEND
 	top10comment = Top10Comment(top10_owner_id=user_id, author_id=current_user.id, body=body)
 	session.add(top10comment)
 	session.flush()
@@ -30,7 +32,7 @@ def create_comment(user_id: int, body: str, session: Session, current_user: User
 	return top10comment
 
 def read_comments(user_id: int, session: Session, current_user: User):
-	if not _can_interact(session, user_id, current_user):
+	if not can_interact(session, user_id, current_user):
 		raise errors.HTTP_403_NOT_FRIEND
 	return session.query(Top10Comment).where(
 		Top10Comment.top10_owner_id == user_id

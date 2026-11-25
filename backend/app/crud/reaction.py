@@ -1,5 +1,5 @@
 from app.db.models import User, Top10Reaction
-from app.crud.comment import _can_interact
+from app.crud.comment import can_interact
 from app import errors
 from pydantic import BaseModel
 from typing import Literal
@@ -13,7 +13,7 @@ class ReactionCreate(BaseModel):
 	reaction: Literal["like", "dislike"]
 
 def create_reaction(user_id: int, reaction: Literal["like", "dislike"], session: Session, current_user: User, events: NotificationEvents | None = None):
-	if not _can_interact(session, user_id, current_user):
+	if not can_interact(session, user_id, current_user):
 		raise errors.HTTP_403_NOT_FRIEND
 	top10reaction = session.query(Top10Reaction).where(
 		and_(
@@ -45,7 +45,7 @@ def create_reaction(user_id: int, reaction: Literal["like", "dislike"], session:
 	return top10reaction
 
 def read_reactions(user_id: int, session: Session, current_user: User):
-	if not _can_interact(session, user_id, current_user):
+	if not can_interact(session, user_id, current_user):
 		raise errors.HTTP_403_NOT_FRIEND
 	return session.query(Top10Reaction).where(
 		Top10Reaction.top10_owner_id == user_id

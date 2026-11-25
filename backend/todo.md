@@ -100,6 +100,11 @@
     - [ ] GET /api/v1/users/me/data-export — export all user data as JSON
     - [x] DELETE /api/v1/settings — soft-delete account
 
+## Backlog — future PRs
+
+18. REST method conventions
+    - [ ] POST used for update operations (`POST /{user_id}/comments/{comment_id}`, `POST /{user_id}/top10/{top10_id}`) — should be PUT or PATCH
+
 ## Not on me (tracked for awareness)
 
 - OAuth 42 login — teammate

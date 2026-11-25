@@ -1,18 +1,15 @@
 """Top 10 route tests — CRUD, rank swap, visibility, and ownership."""
 
-import pytest
 from app.db.models import Profile
 
 REGISTER = "/api/v1/auth/register"
 LOGIN = "/api/v1/auth/login"
-COOKIE = "myplaylist_session"
 
 ALICE = {"email": "alice@test.com", "password": "hunter22", "display_name": "Alice"}
 BOB = {"email": "bob@test.com", "password": "hunter22", "display_name": "Bob"}
 
 SONG_A = {"provider_id": "sp-aaa", "title": "Song A", "artist": "Artist A"}
 SONG_B = {"provider_id": "sp-bbb", "title": "Song B", "artist": "Artist B"}
-SONG_C = {"provider_id": "sp-ccc", "title": "Song C", "artist": "Artist C"}
 
 
 def _register_and_login(client, user):

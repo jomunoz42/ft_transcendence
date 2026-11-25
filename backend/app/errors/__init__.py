@@ -14,7 +14,7 @@ HTTP_409_CONFLICT_UNBLOCK_FIRST		= HTTPException(status.HTTP_409_CONFLICT, "unbl
 HTTP_409_CONFLICT_ONLY_BLOCKER_CAN	= HTTPException(status.HTTP_409_CONFLICT, "declined; only the person who said no can ask again")
 HTTP_409_EMAIL_TAKEN				= HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 HTTP_422_UNPROCESSABLE_CONTENT		= HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
-HTTP_422_MUST_BE_FRIEND_TO_COMMENT	= HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "You must be friend to comment a top10")
+
 
 def http_422_registration(field: str, reason: str):
 	return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"field": field, "reason": reason})

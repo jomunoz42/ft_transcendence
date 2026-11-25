@@ -6,7 +6,7 @@ from app.crud.profile import read_profile, read_profiles, update_profile, Profil
 from app.crud.user import read_user
 from app.db import _me_profile
 from app.db.models import User
-from app.crud.friendship import are_friends
+from app.crud.friendship import are_friends, is_blocked
 from app import errors
 
 router = APIRouter()
@@ -39,18 +39,20 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 	user = read_user(user_id=user_id, session=session)
 	if not user:
 		raise errors.HTTP_404_USER_NOT_FOUND
+	if is_blocked(session, user_id, current_user.id):
+		raise errors.HTTP_404_NOT_FOUND
 	profile = read_profile(profile_id=user.profile.id, session=session)
 	if not profile:
 		raise errors.HTTP_404_PROFILE_NOT_FOUND
 	is_friend = are_friends(session, current_user.id, user_id)
+	can_view = profile.is_top10_public or is_friend
 	result = {
 		"avatar_url": profile.avatar_url,
 		"display_name": profile.display_name,
 		"bio": profile.bio,
 	}
-	if profile.is_top10_public or is_friend:
+	if can_view:
 		result["top10_entries"] = profile.user.top10_entries
-	if is_friend:
 		result["comments"] = profile.user.comments
 		result["reactions"] = profile.user.reactions
 	return result

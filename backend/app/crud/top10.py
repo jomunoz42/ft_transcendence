@@ -58,9 +58,9 @@ def create_top10(user_id: int, data: Top10Add, session: Session) -> Top10Entry:
 	if existing_rank:
 		raise errors.HTTP_409_CONFLICT
 	entry = Top10Entry(user_id=user_id, song_id=song.id, rank=data.rank)
-	session.add(entry)
 	try:
 		with session.begin_nested():
+			session.add(entry)
 			session.flush()
 	except IntegrityError:
 		raise errors.HTTP_409_CONFLICT
@@ -79,7 +79,7 @@ def read_top10(user_id: int, top10_id: int, session: Session) -> Top10Entry | No
 def update_top10(user_id: int, top10_id: int, data: Top10Update, session: Session) -> Top10Entry:
 	entry = session.query(Top10Entry).filter(
 		and_(Top10Entry.id == top10_id, Top10Entry.user_id == user_id)
-	).first()
+	).populate_existing().with_for_update().first()
 	if not entry:
 		raise errors.HTTP_404_NOT_FOUND
 	if entry.rank == data.rank:
@@ -88,7 +88,7 @@ def update_top10(user_id: int, top10_id: int, data: Top10Update, session: Sessio
 	new_rank = data.rank
 	other = session.query(Top10Entry).filter(
 		and_(Top10Entry.user_id == user_id, Top10Entry.rank == new_rank)
-	).first()
+	).populate_existing().with_for_update().first()
 	if other:
 		# Swap: delete both, flush to free the ranks, re-insert with swapped ranks
 		entry_song_id = entry.song_id
@@ -110,7 +110,7 @@ def update_top10(user_id: int, top10_id: int, data: Top10Update, session: Sessio
 def delete_top10(user_id: int, top10_id: int, session: Session):
 	entry = session.query(Top10Entry).filter(
 		and_(Top10Entry.id == top10_id, Top10Entry.user_id == user_id)
-	).first()
+	).populate_existing().with_for_update().first()
 	if not entry:
 		raise errors.HTTP_404_NOT_FOUND
 	session.delete(entry)
