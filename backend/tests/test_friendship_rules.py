@@ -1,12 +1,18 @@
 """Friendship rules: who may send, answer, remove and block, verified against real Postgres."""
 
 import datetime
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, insert, or_, select
+from sqlalchemy import func, insert, or_, select, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.schema import CreateSchema, DropSchema
 
-from app.db.models import Block, Friendship, User
+from app.db import engine
+from app.db.models import Base, Block, Friendship, User
 from app.routes.v1.friendships import (
     accept_request, block_user, cancel_request, check_not_blocked, decline_request,
     remove_friend, send_request, unblock_user,
@@ -431,3 +437,54 @@ def test_every_action_on_a_deleted_account_is_not_found_and_changes_nothing(sess
         rule(session, alice.id, bob.id)
     assert exc.value.status_code == 404
     assert (friendship_rows(session, alice, bob), block_rows(session, alice, bob), session.scalar(select(Friendship.status).where(Friendship.requester_id.in_([alice.id, bob.id])))) == before
+
+
+def wait_until_a_query_waits_on_a_lock(timeout=5.0):
+    """Return once another connection is blocked on a row lock; fail after timeout."""
+    deadline = time.monotonic() + timeout
+    with engine.connect() as connection:
+        while time.monotonic() < deadline:
+            waiting = connection.scalar(text(
+                "SELECT count(*) FROM pg_stat_activity "
+                "WHERE wait_event_type = 'Lock' AND datname = current_database()"
+            ))
+            if waiting:
+                return
+            time.sleep(0.05)
+    pytest.fail("no query started waiting on the friendship row lock")
+
+
+@pytest.mark.filterwarnings("error::sqlalchemy.exc.SAWarning")
+def test_blocking_while_the_friendship_is_being_removed_waits_and_still_blocks():
+    """Block waits for the row lock, so it never deletes a row the remover already deleted."""
+    schema = "test_block_lock_" + uuid.uuid4().hex
+    with engine.begin() as connection:
+        connection.execute(CreateSchema(schema))
+    isolated = engine.execution_options(schema_translate_map={None: schema})
+    factory = sessionmaker(bind=isolated)
+    try:
+        Base.metadata.create_all(isolated)
+        with factory.begin() as setup:
+            alice = make_user(setup, "alice@myplaylist.test")
+            bob = make_user(setup, "bob@myplaylist.test")
+            setup.add(Friendship(requester_id=alice.id, addressee_id=bob.id, status="accepted"))
+            alice_id, bob_id = alice.id, bob.id
+
+        def bob_blocks_alice():
+            with factory.begin() as session:
+                session.execute(text("SET LOCAL statement_timeout = '5s'"))
+                block_user(session, bob_id, alice_id)
+
+        with factory() as removing, ThreadPoolExecutor(max_workers=1) as pool:
+            remove_friend(removing, alice_id, bob_id)
+            blocking = pool.submit(bob_blocks_alice)
+            wait_until_a_query_waits_on_a_lock()
+            removing.commit()
+            blocking.result(timeout=10)
+
+        with factory() as check:
+            assert check.get(Block, (bob_id, alice_id)) is not None
+            assert check.scalar(select(func.count()).select_from(Friendship)) == 0
+    finally:
+        with engine.begin() as connection:
+            connection.execute(DropSchema(schema, cascade=True))
