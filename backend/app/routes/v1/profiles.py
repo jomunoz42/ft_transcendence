@@ -23,7 +23,13 @@ def get_me(session: Session = Depends(get_session), current_user: User = Depends
 	if not profile:
 		raise errors.HTTP_404_PROFILE_NOT_FOUND
 	return _me_profile(profile) |\
-		{"top10_entries": user.top10_entries, "comments": user.comments, "reactions": user.reactions}
+		{"top10_entries": user.top10_entries,
+		 "comments": session.query(Top10Comment).filter(
+			Top10Comment.top10_owner_id == current_user.id
+		 ).order_by(Top10Comment.updated_at.desc()).all(),
+		 "reactions": session.query(Top10Reaction).filter(
+			Top10Reaction.top10_owner_id == current_user.id
+		 ).order_by(Top10Reaction.updated_at.desc()).all()}
 
 @router.post("/me")
 def edit_me(data: ProfileUpdate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):

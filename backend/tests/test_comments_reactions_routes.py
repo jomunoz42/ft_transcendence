@@ -584,3 +584,50 @@ def test_profile_shows_reactions_received_on_own_top10(client, session):
     reactions = body.get("reactions", [])
     assert len(reactions) == 1
     assert reactions[0]["reaction"] == "like"
+
+
+# ── /profiles/me returns comments/reactions received, not authored ───
+
+def test_me_shows_comments_received_not_authored_elsewhere(client, session):
+    """Alice comments on Bob's top10. /profiles/me for Alice should show
+    comments on Alice's own top10, not the one she wrote on Bob's."""
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    # Bob comments on Alice's top10
+    client.post(_comments_url(alice_id), json={"body": "Comment on Alice"})
+
+    # Alice comments on Bob's top10
+    _login(client, ALICE)
+    client.post(_comments_url(bob_id), json={"body": "Comment on Bob"})
+
+    # /profiles/me for Alice should show the comment received, not the one she wrote
+    res = client.get("/api/v1/profiles/me")
+    assert res.status_code == 200
+    comments = res.json().get("comments", [])
+    bodies = [c["body"] for c in comments]
+    assert "Comment on Alice" in bodies
+    assert "Comment on Bob" not in bodies
+
+
+def test_me_shows_reactions_received_not_authored_elsewhere(client, session):
+    """Bob reacts to Alice's top10. /profiles/me for Alice should show
+    that reaction. Alice reacts to Bob's — it should NOT appear on /me."""
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    # Bob reacts to Alice's top10
+    client.post(_reactions_url(alice_id), json={"reaction": "like"})
+
+    # Alice reacts to Bob's top10
+    _login(client, ALICE)
+    client.post(_reactions_url(bob_id), json={"reaction": "dislike"})
+
+    # /profiles/me for Alice should show Bob's reaction on her top10, not her reaction on Bob's
+    res = client.get("/api/v1/profiles/me")
+    assert res.status_code == 200
+    reactions = res.json().get("reactions", [])
+    assert len(reactions) == 1
+    assert reactions[0]["reaction"] == "like"
