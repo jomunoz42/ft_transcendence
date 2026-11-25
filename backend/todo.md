@@ -17,7 +17,7 @@
 4. Implement core CRUD routes
    - [x] GET/POST /api/v1/profiles/me — view/edit own profile
    - [x] GET /api/v1/profiles/{user_id} — view someone's profile
-   - [ ] Manage own Top 10 (via profile update endpoint)
+   - [x] Manage own Top 10 (dedicated top10 CRUD + routes)
    - [x] View someone's Top 10 (via profile endpoint, respecting visibility/friendship)
 
 ## Phase 2 — Social features
@@ -36,32 +36,51 @@
    - [x] POST/GET /api/v1/profiles/{user_id}/comments
    - [x] POST/DELETE /api/v1/profiles/{user_id}/comments/{comment_id}
    - [x] POST/GET/DELETE /api/v1/profiles/{user_id}/reactions
+   - [x] Friendship or public top10 required to comment, react, read comments/reactions
+   - [x] Edit comment requires friendship or public top10 (blocked after unfriending private profile)
+   - [x] Delete comment: author always can, top10 owner can delete anyone's
+   - [x] Delete reaction: author-only
 7. Song search API
    - [x] GET /api/v1/songs/search?q=... — search by title/artist
    - [x] Integration with external music API (Spotify/Deezer)
 8. Profile search API
    - [ ] GET /api/v1/profiles/search?q=... — search by username/display name
 
-## Phase 3 — Advanced features
+## Phase 3 — Bugs & PR fixes
 
-9. Advanced search (module: 1pt)
-   - [ ] Search profiles by music tastes
-   - [ ] Song Advanced search GET /api/v1/search/songs?q=...&filter=...&page=...
-   - [ ] Implement pagination, sorting, filtering across endpoints
-   - [ ] Add song manually
-[maybe handled by Joao] 10. Notifications API (module: 1pt)
-   - [ ] GET /api/v1/notifications — list notifications
-   - [ ] PUT /api/v1/notifications/{id}/read — mark as read
-   - [ ] Backend creates notifications on: friend request, comment, reaction, etc.
-11. GDPR compliance (module: 1pt)
-    - [ ] GET /api/v1/users/me/data-export — export all user data as JSON
-    - [x] DELETE /api/v1/settings — soft-delete account
-12. [x] Input validation everywhere — both Pydantic (request) and DB constraints
-13. [ ] HTTPS setup — coordinate with Person 4 (likely nginx reverse proxy with self-signed cert)
+9. Fix top10 UniqueViolation
+   - [x] Extract top10 logic out of `update_profile` into `crud/top10.py` + `routes/v1/top10s.py`
+   - [x] Individual add/update/delete instead of bulk replace (no more constraint violations)
+   - [x] Rank update swaps entries, duplicate song/rank returns 409
+   - [x] Songs only created from Spotify search data (no manual), looked up by `provider_id`
+   - [x] Fixed `/me` route ordering in `profiles.py` (`/me` before `/{user_id}`)
+10. Security fixes (from PR review)
+    - [x] POST /api/v1/settings — return `_me(user)` not raw User (was leaking password_hash)
+    - [x] POST /api/v1/profiles/me — return `_me_profile(profile)` not raw Profile
+    - [x] Centralized error handling (`app/errors/__init__.py`)
+    - [x] Removed broad `try/except` blocks hiding DB errors
+    - [x] Explicit `session.commit()` in routes, removed yield-based `commit_session`
+    - [x] `.env.example` — replaced real Spotify credentials with placeholders
 
-## Phase 4 — Polish
+## Phase 4 — Modules (my scope)
 
-14. [x] Error handling middleware — consistent error response format across all routes
-15. [ ] Rate limiting — if claiming the public API module
-16. [ ] Metrics endpoint — /metrics for Prometheus scraping (coordinate with Person 4)
-17. [x] API documentation — FastAPI generates this automatically at /docs and /redoc
+11. Public API module — #76 (2pts Major)
+    - [ ] API key model + generation endpoint
+    - [ ] API key auth middleware (separate from session auth)
+    - [ ] Rate limiting middleware
+    - [ ] Add at least one PUT endpoint (currently only GET/POST/DELETE)
+    - [x] Swagger docs — already free from FastAPI at /docs and /redoc
+12. Top 10 flow — #51
+    - [x] Create, reorder, view, persistence
+    - [x] Rank swap, duplicate handling, concurrent safety
+
+## Phase 5 — Mandatory requirements
+
+13. Backend input validation audit
+    - [ ] Audit all POST endpoints for proper Pydantic validation (types, lengths, formats)
+    - [ ] Especially: registration, profile update, comments, reactions
+
+## Phase 6 — Advanced features (stretch)
+
+14. REST method conventions
+    - [ ] POST used for update operations (`POST /{user_id}/comments/{comment_id}`, `POST /{user_id}/top10/{top10_id}`) — should be PUT or PATCH

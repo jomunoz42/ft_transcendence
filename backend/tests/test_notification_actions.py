@@ -95,15 +95,14 @@ def test_reopened_friend_requests_are_new_events(session, client, social, delive
     assert len({row.event_key for row in notifications}) == 5
 
 
-@pytest.mark.parametrize("latest", [False, True])
-def test_comment_create_edit_delete_and_noops(session, client, social, delivered, latest):
+def test_comment_create_edit_delete_and_noops(session, client, social, delivered):
     users, _ = social
     befriend(session, users)
     path = f"/api/v1/profiles/{users[1].id}/comments"
     response = client.post(path, json={"body": "private comment text"})
     assert response.status_code == 200
     comment_id = session.scalar(select(Top10Comment.id))
-    edit = path + ("/latest" if latest else f"/{comment_id}")
+    edit = f"{path}/{comment_id}"
     for body in ["private comment text", "edited", "edited", "private comment text", "edited"]:
         assert client.post(edit, json={"body": body}).status_code == 200
     assert client.delete(f"{path}/{comment_id}").status_code == 200
@@ -153,8 +152,8 @@ def test_block_unblock_and_failed_actions_do_not_notify(session, client, social,
     befriend(session, users)
     assert client.post(f"/api/v1/friends/block/{users[1].id}").status_code == 200
     assert client.post(f"/api/v1/friends/request/{users[1].id}").status_code == 409
-    assert client.post(f"/api/v1/profiles/{users[1].id}/comments", json={"body": "secret"}).status_code == 422
-    assert client.post(f"/api/v1/profiles/{users[1].id}/reactions", json={"reaction": "like"}).status_code == 403
+    assert client.post(f"/api/v1/profiles/{users[1].id}/comments", json={"body": "secret"}).status_code == 404
+    assert client.post(f"/api/v1/profiles/{users[1].id}/reactions", json={"reaction": "like"}).status_code == 404
     assert client.post(f"/api/v1/friends/unblock/{users[1].id}").status_code == 200
     assert client.post(f"/api/v1/friends/request/{users[0].id}").status_code == 422
     assert rows(session) == []

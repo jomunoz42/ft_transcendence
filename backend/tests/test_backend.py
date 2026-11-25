@@ -98,10 +98,6 @@ tests = [
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/{luna}/comments/latest', method='POST', body={"body": "Bonjour"}),
-		Exp(status_code=200),
-	),
-	(
 		Req(uri='/api/v1/profiles/{luna}/reactions', method='GET'),
 		Exp(status_code=200),
 	),
@@ -134,12 +130,12 @@ tests = [
 		Exp(status_code=200, body={"display_name": "Victor"}),
 	),
 	(
-		Req(uri='/api/v1/profiles/me', method='POST', body={"top10": [{"title": "Hello", "artist": "bonjour", "rank": 1}]}),
+		Req(uri='/api/v1/profiles/{victor}/top10', method='POST', body={"song": {"provider_id": "test-spotify-id-1", "title": "Hello", "artist": "bonjour"}, "rank": 1}),
 		Exp(status_code=200),
 	),
 	(
-		Req(uri='/api/v1/profiles/me', method='POST', body={"top10": [{"title": "Hello", "artist": "bonjour", "rank": 1}]}),
-		Exp(status_code=400),
+		Req(uri='/api/v1/profiles/{victor}/top10', method='POST', body={"song": {"provider_id": "test-spotify-id-1", "title": "Hello", "artist": "bonjour"}, "rank": 1}),
+		Exp(status_code=409),
 	),
 	(
 		Req(uri='/api/v1/songs', method='GET'),
@@ -156,7 +152,7 @@ tests = [
 ]
 
 def _do_request(session: TestClient, req: Req, exp: Exp):
-	uri = req.uri.format(luna=_luna_id())
+	uri = req.uri.format(luna=_luna_id(), victor=_victor_id())
 	if (req.method == 'GET'):
 		res = session.get(url=uri)
 	if (req.method == 'POST'):
@@ -222,7 +218,7 @@ def test_cleanup_keeps_a_song_another_user_has_in_top10():
 	with SessionLocal() as session:
 		song = session.query(Song).filter(Song.title == "Hello", Song.artist == "bonjour").first()
 		if song is None:
-			song = Song(provider="manual", provider_id="test-hello-bonjour", title="Hello", artist="bonjour")
+			song = Song(provider="spotify", provider_id="test-hello-bonjour", title="Hello", artist="bonjour")
 			session.add(song)
 			session.flush()
 		used = {r for (r,) in session.query(Top10Entry.rank).filter(Top10Entry.user_id == _luna_id())}

@@ -1,4 +1,3 @@
-# TODO: remove the "" and "/"
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import end_session
 from fastapi import APIRouter, Cookie, Depends, Response
@@ -19,7 +18,7 @@ def get_me(current_user: User = Depends(current_user)):
 def update_me(data: UserUpdate, current_user: User = Depends(current_user), session: Session = Depends(get_session)):
 	user = update_user(user_id=current_user.id, data=data, session=session)
 	session.commit()
-	return user
+	return _me(user)
 
 @router.delete("")
 def delete_me(response: Response, session: Session = Depends(get_session), current_user: User = Depends(current_user), token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME)):
