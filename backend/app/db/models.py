@@ -193,6 +193,26 @@ class Top10Reaction(Base):
     author: Mapped["User"] = relationship(foreign_keys=[author_id], back_populates="reactions")
 
 
+class Message(Base):
+    """A private chat message; deleting the sender or the recipient deletes it."""
+
+    __tablename__ = "messages"
+    __table_args__ = (
+        CheckConstraint("body ~ '[^[:space:]]'", name="ck_messages_body_not_blank"),
+        CheckConstraint("sender_id <> recipient_id", name="ck_messages_not_self"),
+        Index("ix_messages_sender_id_recipient_id_created_at", "sender_id", "recipient_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    sender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    recipient_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    body: Mapped[str] = mapped_column(String(1000), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    sender: Mapped["User"] = relationship(foreign_keys=[sender_id])
+    recipient: Mapped["User"] = relationship(foreign_keys=[recipient_id])
+
+
 class UserSession(Base):
     # Named UserSession so it does not clash with SQLAlchemy's own Session.
     __tablename__ = "sessions"
