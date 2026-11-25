@@ -43,7 +43,7 @@ def get_top10(user_id: int, top10_id: int, session: Session = Depends(get_sessio
 @router.post("/{user_id}/top10")
 def add_top10(user_id: int, req: Top10Add, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	if user_id != current_user.id:
-		raise errors.HTTP_422_UNPROCESSABLE_CONTENT
+		raise errors.HTTP_403_NOT_FRIEND
 	entry = create_top10(user_id=current_user.id, data=req, session=session)
 	session.commit()
 	session.refresh(entry)
@@ -52,7 +52,7 @@ def add_top10(user_id: int, req: Top10Add, session: Session = Depends(get_sessio
 @router.post("/{user_id}/top10/{top10_id}")
 def edit_top10(user_id: int, top10_id: int, req: Top10Update, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	if user_id != current_user.id:
-		raise errors.HTTP_422_UNPROCESSABLE_CONTENT
+		raise errors.HTTP_403_NOT_FRIEND
 	entry = update_top10(user_id=current_user.id, top10_id=top10_id, data=req, session=session)
 	session.commit()
 	session.refresh(entry)
@@ -61,7 +61,7 @@ def edit_top10(user_id: int, top10_id: int, req: Top10Update, session: Session =
 @router.delete("/{user_id}/top10/{top10_id}")
 def remove_top10(user_id: int, top10_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
 	if user_id != current_user.id:
-		raise errors.HTTP_422_UNPROCESSABLE_CONTENT
+		raise errors.HTTP_403_NOT_FRIEND
 	delete_top10(user_id=current_user.id, top10_id=top10_id, session=session)
 	session.commit()
 	return None

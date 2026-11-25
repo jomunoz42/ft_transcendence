@@ -1,4 +1,4 @@
-"""Route-level tests for comments & reactions — friendship gates, ownership, unfriend behavior, public top10."""
+"""Route-level tests for comments & reactions — friendship gates, ownership, unfriend behavior, public top10, blocks."""
 
 from app.db.models import Profile
 
@@ -7,6 +7,7 @@ LOGIN = "/api/v1/auth/login"
 FRIENDS_REQ = "/api/v1/friends/request"
 FRIENDS_ACC = "/api/v1/friends/accept"
 FRIENDS_DEL = "/api/v1/friends"
+FRIENDS_BLOCK = "/api/v1/friends/block"
 
 ALICE = {"email": "alice@test.com", "password": "hunter22", "display_name": "Alice"}
 BOB = {"email": "bob@test.com", "password": "hunter22", "display_name": "Bob"}
@@ -136,7 +137,7 @@ def test_random_user_cannot_delete_others_comment(client):
 
     _register_and_login(client, CHARLIE)
     res = client.delete(f"{_comments_url(alice_id)}/{comment_id}")
-    assert res.status_code == 422
+    assert res.status_code == 404
 
 
 # ── Reactions — friendship required to add ───────────────────────────
@@ -327,3 +328,79 @@ def test_edit_blocked_after_top10_goes_private(client, session):
 
     res = client.post(f"{_comments_url(alice_id)}/{comment_id}", json={"body": "Hacked!"})
     assert res.status_code == 422
+
+
+# ── Owner can interact with own comments/reactions ───────────────────
+
+def test_owner_can_read_own_comments_on_private_top10(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    client.post(_comments_url(alice_id), json={"body": "Nice list!"})
+    _set_top10_public(session, alice_id, False)
+
+    _login(client, ALICE)
+    res = client.get(_comments_url(alice_id))
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+
+
+def test_owner_can_read_own_reactions_on_private_top10(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    client.post(_reactions_url(alice_id), json={"reaction": "like"})
+    _set_top10_public(session, alice_id, False)
+
+    _login(client, ALICE)
+    res = client.get(_reactions_url(alice_id))
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+
+
+# ── Blocked users cannot interact ────────────────────────────────────
+
+def test_blocked_user_cannot_comment_on_public_top10(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _set_top10_public(session, alice_id, True)
+
+    # Alice blocks Bob
+    _login(client, ALICE)
+    client.post(f"{FRIENDS_BLOCK}/{bob_id}")
+
+    _login(client, BOB)
+    res = client.post(_comments_url(alice_id), json={"body": "Spam!"})
+    assert res.status_code == 422
+
+
+def test_blocked_user_cannot_react_to_public_top10(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _set_top10_public(session, alice_id, True)
+
+    _login(client, ALICE)
+    client.post(f"{FRIENDS_BLOCK}/{bob_id}")
+
+    _login(client, BOB)
+    res = client.post(_reactions_url(alice_id), json={"reaction": "like"})
+    assert res.status_code == 403
+
+
+def test_blocked_user_cannot_read_comments_on_public_top10(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    client.post(_comments_url(alice_id), json={"body": "Nice!"})
+    _set_top10_public(session, alice_id, True)
+
+    # Alice blocks Bob
+    _login(client, ALICE)
+    client.post(f"{FRIENDS_BLOCK}/{bob_id}")
+
+    _login(client, BOB)
+    res = client.get(_comments_url(alice_id))
+    assert res.status_code == 403

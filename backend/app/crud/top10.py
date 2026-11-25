@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 from pydantic import BaseModel
 from typing import Literal
@@ -58,7 +59,11 @@ def create_top10(user_id: int, data: Top10Add, session: Session) -> Top10Entry:
 		raise errors.HTTP_409_CONFLICT
 	entry = Top10Entry(user_id=user_id, song_id=song.id, rank=data.rank)
 	session.add(entry)
-	session.flush()
+	try:
+		session.flush()
+	except IntegrityError:
+		session.rollback()
+		raise errors.HTTP_409_CONFLICT
 	return entry
 
 def read_top10s(user_id: int, session: Session) -> list[Top10Entry]:

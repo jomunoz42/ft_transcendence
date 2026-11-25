@@ -144,7 +144,7 @@ def test_cannot_add_to_another_users_top10(client):
     bob_id = _register_and_login(client, BOB)
 
     res = client.post(_top10_url(alice_id), json={"song": SONG_A, "rank": 1})
-    assert res.status_code == 422
+    assert res.status_code == 403
 
 
 def test_cannot_delete_another_users_entry(client):
@@ -155,7 +155,7 @@ def test_cannot_delete_another_users_entry(client):
     _register_and_login(client, BOB)
 
     res = client.delete(f"{_top10_url(alice_id)}/{entry_id}")
-    assert res.status_code == 422
+    assert res.status_code == 403
 
 
 # ── Visibility ────────────────────────────────────────────────────────
