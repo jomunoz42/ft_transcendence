@@ -4,6 +4,8 @@ from app.db import get_session
 from app.auth.current_user import current_user
 from app.db.models import User
 from app.crud.comment import create_comment, read_comments, update_comment, delete_comment, CommentCreate, _can_interact
+from app.crud.notification import NotificationEvents
+from app.realtime.notifications import NotificationsNotifier, get_notifications_notifier
 from app import errors
 
 router = APIRouter()
@@ -14,25 +16,31 @@ def get_comments(user_id: int, session: Session = Depends(get_session), current_
 	return comments
 
 @router.post("/{user_id}/comments")
-def add_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+def add_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
 	if not _can_interact(session, user_id, current_user):
 		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
-	comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user)
+	events: NotificationEvents = []
+	comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user, events=events)
 	session.commit()
 	session.refresh(comment)
+	notify_notifications(events)
 	return comment
 
 @router.post("/{user_id}/comments/{comment_id}")
-def edit_comment(comment_id: int, user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
+def edit_comment(comment_id: int, user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
 	if not _can_interact(session, user_id, current_user):
-		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
-	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user)
+		raise errors.HTTP_404_NOT_FOUND
+	events: NotificationEvents = []
+	comment = update_comment(user_id=user_id, comment_id=comment_id, body=req.body, session=session, current_user=current_user, events=events)
 	session.commit()
 	session.refresh(comment)
+	notify_notifications(events)
 	return comment
 
 @router.delete("/{user_id}/comments/{comment_id}")
-def remove_comment(comment_id: int, user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user)):
-	delete_comment(user_id=user_id, comment_id=comment_id, session=session, current_user=current_user)
+def remove_comment(comment_id: int, user_id: int, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
+	events: NotificationEvents = []
+	delete_comment(user_id=user_id, comment_id=comment_id, session=session, current_user=current_user, events=events)
 	session.commit()
+	notify_notifications(events)
 	return None

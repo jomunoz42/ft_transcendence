@@ -96,7 +96,7 @@ def test_cannot_edit_comment_after_unfriending(client, session):
     # Bob tries to edit — should fail
     _login(client, BOB)
     res = client.post(f"{_comments_url(alice_id)}/{comment_id}", json={"body": "Hacked!"})
-    assert res.status_code == 422
+    assert res.status_code == 404
 
 
 # ── Comments — delete: author always, owner can delete anyone's ──────
@@ -327,7 +327,7 @@ def test_edit_blocked_after_top10_goes_private(client, session):
     _set_top10_public(session, alice_id, False)
 
     res = client.post(f"{_comments_url(alice_id)}/{comment_id}", json={"body": "Hacked!"})
-    assert res.status_code == 422
+    assert res.status_code == 404
 
 
 # ── Owner can interact with own comments/reactions ───────────────────

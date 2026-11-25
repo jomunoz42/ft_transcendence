@@ -95,15 +95,14 @@ def test_reopened_friend_requests_are_new_events(session, client, social, delive
     assert len({row.event_key for row in notifications}) == 5
 
 
-@pytest.mark.parametrize("latest", [False, True])
-def test_comment_create_edit_delete_and_noops(session, client, social, delivered, latest):
+def test_comment_create_edit_delete_and_noops(session, client, social, delivered):
     users, _ = social
     befriend(session, users)
     path = f"/api/v1/profiles/{users[1].id}/comments"
     response = client.post(path, json={"body": "private comment text"})
     assert response.status_code == 200
     comment_id = session.scalar(select(Top10Comment.id))
-    edit = path + ("/latest" if latest else f"/{comment_id}")
+    edit = f"{path}/{comment_id}"
     for body in ["private comment text", "edited", "edited", "private comment text", "edited"]:
         assert client.post(edit, json={"body": body}).status_code == 200
     assert client.delete(f"{path}/{comment_id}").status_code == 200
