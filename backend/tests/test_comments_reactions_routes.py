@@ -471,3 +471,68 @@ def test_private_profile_hides_comments_and_reactions_from_non_friend(client, se
     assert "comments" not in body
     assert "reactions" not in body
     assert "top10_entries" not in body
+
+
+# ── Self-reaction returns 422, not 500 ─────────────────────────────
+
+def test_owner_cannot_react_to_own_top10(client):
+    alice_id = _register_and_login(client, ALICE)
+    res = client.post(_reactions_url(alice_id), json={"reaction": "like"})
+    assert res.status_code == 422
+
+
+def test_owner_cannot_react_to_own_top10_even_if_public(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    _set_top10_public(session, alice_id, True)
+    res = client.post(_reactions_url(alice_id), json={"reaction": "like"})
+    assert res.status_code == 422
+
+
+# ── Profile shows comments received, not comments authored elsewhere ─
+
+def test_profile_does_not_leak_comments_on_private_top10s(client, session):
+    """Bob comments on Alice's private top10. Charlie views Bob's public
+    profile and must NOT see that comment — it lives on Alice's private page."""
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    # Bob comments on Alice's top10
+    client.post(_comments_url(alice_id), json={"body": "Secret comment"})
+
+    # Make Bob's top10 public so Charlie can see his profile data
+    _set_top10_public(session, bob_id, True)
+    # Alice's top10 stays private
+    _set_top10_public(session, alice_id, False)
+
+    # Charlie views Bob's profile — should not see the comment Bob wrote on Alice's page
+    _register_and_login(client, CHARLIE)
+    res = client.get(f"/api/v1/profiles/{bob_id}")
+    assert res.status_code == 200
+    body = res.json()
+    comments = body.get("comments", [])
+    for c in comments:
+        assert c.get("top10_owner_id") != alice_id, \
+            "Profile leaked a comment written on another user's private top10"
+
+
+def test_profile_shows_comments_received_on_own_top10(client, session):
+    """Bob comments on Alice's public top10. Charlie views Alice's profile
+    and should see that comment, since it's on Alice's own page."""
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    # Bob comments on Alice's top10
+    client.post(_comments_url(alice_id), json={"body": "Public comment"})
+
+    # Alice's top10 is public
+    _set_top10_public(session, alice_id, True)
+
+    _register_and_login(client, CHARLIE)
+    res = client.get(f"/api/v1/profiles/{alice_id}")
+    assert res.status_code == 200
+    body = res.json()
+    comments = body.get("comments", [])
+    assert len(comments) == 1
+    assert comments[0]["body"] == "Public comment"
