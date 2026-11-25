@@ -152,8 +152,8 @@ def test_block_unblock_and_failed_actions_do_not_notify(session, client, social,
     befriend(session, users)
     assert client.post(f"/api/v1/friends/block/{users[1].id}").status_code == 200
     assert client.post(f"/api/v1/friends/request/{users[1].id}").status_code == 409
-    assert client.post(f"/api/v1/profiles/{users[1].id}/comments", json={"body": "secret"}).status_code == 403
-    assert client.post(f"/api/v1/profiles/{users[1].id}/reactions", json={"reaction": "like"}).status_code == 403
+    assert client.post(f"/api/v1/profiles/{users[1].id}/comments", json={"body": "secret"}).status_code == 404
+    assert client.post(f"/api/v1/profiles/{users[1].id}/reactions", json={"reaction": "like"}).status_code == 404
     assert client.post(f"/api/v1/friends/unblock/{users[1].id}").status_code == 200
     assert client.post(f"/api/v1/friends/request/{users[0].id}").status_code == 422
     assert rows(session) == []

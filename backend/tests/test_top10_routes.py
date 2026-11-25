@@ -184,6 +184,46 @@ def test_public_top10_is_visible_to_non_friend(client, session):
     assert len(res.json()) == 1
 
 
+def test_friend_can_see_private_top10(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    client.post(_top10_url(alice_id), json={"song": SONG_A, "rank": 1})
+    session.query(Profile).filter(Profile.user_id == alice_id).update({"is_top10_public": False})
+    session.commit()
+
+    bob_id = _register_and_login(client, BOB)
+    # Make friends
+    client.post("/api/v1/friends/request/" + str(alice_id))
+    client.post("/api/v1/auth/login", json={"email": ALICE["email"], "password": ALICE["password"]})
+    client.post("/api/v1/friends/accept/" + str(bob_id))
+    client.post("/api/v1/auth/login", json={"email": BOB["email"], "password": BOB["password"]})
+
+    res = client.get(_top10_url(alice_id))
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+
+
+def test_blocked_user_cannot_see_top10(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    client.post(_top10_url(alice_id), json={"song": SONG_A, "rank": 1})
+    session.query(Profile).filter(Profile.user_id == alice_id).update({"is_top10_public": True})
+    session.commit()
+
+    bob_id = _register_and_login(client, BOB)
+    # Alice blocks Bob
+    client.post("/api/v1/auth/login", json={"email": ALICE["email"], "password": ALICE["password"]})
+    client.post(f"/api/v1/friends/block/{bob_id}")
+    client.post("/api/v1/auth/login", json={"email": BOB["email"], "password": BOB["password"]})
+
+    res = client.get(_top10_url(alice_id))
+    assert res.status_code == 404
+
+
+def test_nonexistent_user_top10_returns_404(client):
+    _register_and_login(client, ALICE)
+    res = client.get(_top10_url(999999))
+    assert res.status_code == 404
+
+
 def test_owner_always_sees_own_top10(client, session):
     alice_id = _register_and_login(client, ALICE)
     client.post(_top10_url(alice_id), json={"song": SONG_A, "rank": 1})

@@ -15,6 +15,5 @@ HTTP_409_CONFLICT_ONLY_BLOCKER_CAN	= HTTPException(status.HTTP_409_CONFLICT, "de
 HTTP_409_EMAIL_TAKEN				= HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 HTTP_422_UNPROCESSABLE_CONTENT		= HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Cannot act on yourself")
 
-
 def http_422_registration(field: str, reason: str):
 	return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"field": field, "reason": reason})

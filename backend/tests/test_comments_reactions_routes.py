@@ -373,7 +373,7 @@ def test_blocked_user_cannot_comment_on_public_top10(client, session):
 
     _login(client, BOB)
     res = client.post(_comments_url(alice_id), json={"body": "Spam!"})
-    assert res.status_code == 403
+    assert res.status_code == 404
 
 
 def test_blocked_user_cannot_react_to_public_top10(client, session):
@@ -386,7 +386,7 @@ def test_blocked_user_cannot_react_to_public_top10(client, session):
 
     _login(client, BOB)
     res = client.post(_reactions_url(alice_id), json={"reaction": "like"})
-    assert res.status_code == 403
+    assert res.status_code == 404
 
 
 def test_blocked_user_cannot_read_comments_on_public_top10(client, session):
@@ -403,4 +403,71 @@ def test_blocked_user_cannot_read_comments_on_public_top10(client, session):
 
     _login(client, BOB)
     res = client.get(_comments_url(alice_id))
-    assert res.status_code == 403
+    assert res.status_code == 404
+
+
+# ── Nonexistent user ────────────────────────────────────────────────
+
+def test_comment_on_nonexistent_user_returns_404(client):
+    _register_and_login(client, ALICE)
+    res = client.post(_comments_url(999999), json={"body": "Hello?"})
+    assert res.status_code == 404
+
+
+def test_read_comments_on_nonexistent_user_returns_404(client):
+    _register_and_login(client, ALICE)
+    res = client.get(_comments_url(999999))
+    assert res.status_code == 404
+
+
+def test_react_to_nonexistent_user_returns_404(client):
+    _register_and_login(client, ALICE)
+    res = client.post(_reactions_url(999999), json={"reaction": "like"})
+    assert res.status_code == 404
+
+
+def test_read_reactions_on_nonexistent_user_returns_404(client):
+    _register_and_login(client, ALICE)
+    res = client.get(_reactions_url(999999))
+    assert res.status_code == 404
+
+
+# ── Profile endpoint — block and public visibility ──────────────────
+
+def test_blocked_user_gets_404_on_profile(client):
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+
+    _login(client, ALICE)
+    client.post(f"{FRIENDS_BLOCK}/{bob_id}")
+
+    _login(client, BOB)
+    res = client.get(f"/api/v1/profiles/{alice_id}")
+    assert res.status_code == 404
+
+
+def test_public_profile_shows_comments_and_reactions_to_non_friend(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    _set_top10_public(session, alice_id, True)
+
+    # Charlie (non-friend) views Alice's public profile
+    _register_and_login(client, CHARLIE)
+    res = client.get(f"/api/v1/profiles/{alice_id}")
+    assert res.status_code == 200
+    body = res.json()
+    assert "comments" in body
+    assert "reactions" in body
+    assert "top10_entries" in body
+
+
+def test_private_profile_hides_comments_and_reactions_from_non_friend(client, session):
+    alice_id = _register_and_login(client, ALICE)
+    _set_top10_public(session, alice_id, False)
+
+    _register_and_login(client, CHARLIE)
+    res = client.get(f"/api/v1/profiles/{alice_id}")
+    assert res.status_code == 200
+    body = res.json()
+    assert "comments" not in body
+    assert "reactions" not in body
+    assert "top10_entries" not in body

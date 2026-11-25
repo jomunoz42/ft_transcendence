@@ -35,8 +35,14 @@ def _get_or_create_song(song_data: SongAdd, session: Session) -> Song:
 			cover_url=song_data.cover_url,
 			duration_ms=song_data.duration_ms,
 		)
-		session.add(song)
-		session.flush()
+		try:
+			with session.begin_nested():
+				session.add(song)
+				session.flush()
+		except IntegrityError:
+			song = session.query(Song).filter(
+				and_(Song.provider == "spotify", Song.provider_id == song_data.provider_id)
+			).first()
 	return song
 
 def create_top10(user_id: int, data: Top10Add, session: Session) -> Top10Entry:

@@ -9,15 +9,18 @@ from app.notifications import advance_updated_at, record_action
 
 
 def can_interact(session: Session, owner_id: int, current_user: User) -> bool:
-	"""True if current_user is the owner, friends with owner, or the owner's top10 is public — and not blocked."""
+	"""True if current_user is the owner, friends with owner, or the owner's top10 is public.
+	Raises 404 for nonexistent or blocked users (don't leak existence)."""
 	if owner_id == current_user.id:
 		return True
 	if is_blocked(session, owner_id, current_user.id):
-		return False
+		raise errors.HTTP_404_NOT_FOUND
 	if are_friends(session=session, a=owner_id, b=current_user.id):
 		return True
 	profile = session.query(Profile).filter(Profile.user_id == owner_id).first()
-	return profile is not None and profile.is_top10_public
+	if profile is None:
+		raise errors.HTTP_404_NOT_FOUND
+	return profile.is_top10_public
 
 class CommentCreate(BaseModel):
 	body: str
