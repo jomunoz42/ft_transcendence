@@ -536,3 +536,51 @@ def test_profile_shows_comments_received_on_own_top10(client, session):
     comments = body.get("comments", [])
     assert len(comments) == 1
     assert comments[0]["body"] == "Public comment"
+
+
+def test_profile_does_not_leak_reactions_on_private_top10s(client, session):
+    """Bob reacts to Alice's private top10. Charlie views Bob's public
+    profile and must NOT see that reaction."""
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    # Bob reacts to Alice's top10
+    client.post(_reactions_url(alice_id), json={"reaction": "like"})
+
+    # Make Bob's top10 public so Charlie can see his profile data
+    _set_top10_public(session, bob_id, True)
+    # Alice's top10 stays private
+    _set_top10_public(session, alice_id, False)
+
+    # Charlie views Bob's profile — should not see the reaction Bob left on Alice's page
+    _register_and_login(client, CHARLIE)
+    res = client.get(f"/api/v1/profiles/{bob_id}")
+    assert res.status_code == 200
+    body = res.json()
+    reactions = body.get("reactions", [])
+    for r in reactions:
+        assert r.get("top10_owner_id") != alice_id, \
+            "Profile leaked a reaction left on another user's private top10"
+
+
+def test_profile_shows_reactions_received_on_own_top10(client, session):
+    """Bob reacts to Alice's public top10. Charlie views Alice's profile
+    and should see that reaction."""
+    alice_id = _register_and_login(client, ALICE)
+    bob_id = _register_and_login(client, BOB)
+    _make_friends(client, ALICE, BOB, alice_id, bob_id)
+
+    # Bob reacts to Alice's top10
+    client.post(_reactions_url(alice_id), json={"reaction": "like"})
+
+    # Alice's top10 is public
+    _set_top10_public(session, alice_id, True)
+
+    _register_and_login(client, CHARLIE)
+    res = client.get(f"/api/v1/profiles/{alice_id}")
+    assert res.status_code == 200
+    body = res.json()
+    reactions = body.get("reactions", [])
+    assert len(reactions) == 1
+    assert reactions[0]["reaction"] == "like"
