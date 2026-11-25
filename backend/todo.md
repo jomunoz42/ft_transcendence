@@ -64,52 +64,23 @@
 
 ## Phase 4 — Modules (my scope)
 
-11. Standard User Management module (2pts Major)
-    - [x] Users can update their profile information
-    - [ ] Avatar upload — POST /api/v1/profiles/me/avatar (accept file, store, serve)
-    - [ ] Default avatar for users who don't upload one
-    - [x] Users can add friends and see online status
-    - [x] Profile page displaying user information
-12. Public API module (2pts Major)
+11. Public API module — #76 (2pts Major)
     - [ ] API key model + generation endpoint
     - [ ] API key auth middleware (separate from session auth)
     - [ ] Rate limiting middleware
     - [ ] Add at least one PUT endpoint (currently only GET/POST/DELETE)
     - [x] Swagger docs — already free from FastAPI at /docs and /redoc
+12. Top 10 flow — #51
+    - [x] Create, reorder, view, persistence
+    - [x] Rank swap, duplicate handling, concurrent safety
 
 ## Phase 5 — Mandatory requirements
 
-13. Privacy Policy & Terms of Service
-    - [ ] Backend endpoints to serve content
-    - [ ] Coordinate with frontend for accessible pages (footer links)
-    - [ ] Content must be relevant, not placeholder
-14. HTTPS setup
-    - [ ] TLS termination (nginx reverse proxy with self-signed cert or similar)
-    - [ ] All browser-to-backend connections over HTTPS
-15. Backend input validation audit
+13. Backend input validation audit
     - [ ] Audit all POST endpoints for proper Pydantic validation (types, lengths, formats)
     - [ ] Especially: registration, profile update, comments, reactions
 
 ## Phase 6 — Advanced features (stretch)
 
-16. Advanced search (module: 1pt)
-    - [ ] Song Advanced search GET /api/v1/search/songs?q=...&filter=...&page=...
-    - [ ] Implement pagination, sorting, filtering across endpoints
-    - [ ] Add song manually
-17. GDPR compliance (module: 1pt)
-    - [ ] GET /api/v1/users/me/data-export — export all user data as JSON
-    - [x] DELETE /api/v1/settings — soft-delete account
-
-## Backlog — future PRs
-
-18. REST method conventions
+14. REST method conventions
     - [ ] POST used for update operations (`POST /{user_id}/comments/{comment_id}`, `POST /{user_id}/top10/{top10_id}`) — should be PUT or PATCH
-
-## Not on me (tracked for awareness)
-
-- OAuth 42 login — teammate
-- Prometheus + Grafana monitoring — Joao
-- WebSocket / chat / presence — teammate
-- Friendships logic — Andre
-- Notifications API — maybe Joao
-- Frontend (CSS framework, UI, client-side validation)
