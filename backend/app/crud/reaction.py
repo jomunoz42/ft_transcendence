@@ -13,6 +13,8 @@ class ReactionCreate(BaseModel):
 	reaction: Literal["like", "dislike"]
 
 def create_reaction(user_id: int, reaction: Literal["like", "dislike"], session: Session, current_user: User, events: NotificationEvents | None = None):
+	if user_id == current_user.id:
+		raise errors.HTTP_422_UNPROCESSABLE_CONTENT
 	if not can_interact(session, user_id, current_user):
 		raise errors.HTTP_403_NOT_FRIEND
 	top10reaction = session.query(Top10Reaction).where(

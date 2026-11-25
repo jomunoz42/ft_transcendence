@@ -5,7 +5,7 @@ from app.auth.current_user import current_user
 from app.crud.profile import read_profile, read_profiles, update_profile, ProfileUpdate
 from app.crud.user import read_user
 from app.db import _me_profile
-from app.db.models import User
+from app.db.models import User, Top10Comment, Top10Reaction
 from app.crud.friendship import are_friends, is_blocked
 from app import errors
 
@@ -53,6 +53,10 @@ def get_profile(user_id: int, session: Session = Depends(get_session), current_u
 	}
 	if can_view:
 		result["top10_entries"] = profile.user.top10_entries
-		result["comments"] = profile.user.comments
-		result["reactions"] = profile.user.reactions
+		result["comments"] = session.query(Top10Comment).filter(
+			Top10Comment.top10_owner_id == user_id
+		).order_by(Top10Comment.updated_at.desc()).all()
+		result["reactions"] = session.query(Top10Reaction).filter(
+			Top10Reaction.top10_owner_id == user_id
+		).order_by(Top10Reaction.updated_at.desc()).all()
 	return result
