@@ -38,6 +38,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Drop avatars and let avatar_url be NULL again, with no default."""
+    """Drop avatars and let avatar_url be NULL again, with no default; default URLs go back to NULL."""
     op.alter_column('profiles', 'avatar_url', nullable=True, server_default=None)
+    op.execute(sa.text("UPDATE profiles SET avatar_url = NULL WHERE avatar_url = :url").bindparams(url=DEFAULT_URL))
     op.drop_table('avatars')
