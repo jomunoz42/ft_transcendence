@@ -1,5 +1,3 @@
-# TODO: Add rolllback on comments failure
-
 from fastapi import APIRouter, Depends, responses
 from sqlalchemy.orm import Session
 from app.db import get_session

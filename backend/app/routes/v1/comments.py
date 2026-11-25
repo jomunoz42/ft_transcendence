@@ -18,7 +18,7 @@ def get_comments(user_id: int, session: Session = Depends(get_session), current_
 @router.post("/{user_id}/comments")
 def add_comment(user_id: int, req: CommentCreate, session: Session = Depends(get_session), current_user: User = Depends(current_user), notify_notifications: NotificationsNotifier = Depends(get_notifications_notifier)):
 	if not _can_interact(session, user_id, current_user):
-		raise errors.HTTP_422_MUST_BE_FRIEND_TO_COMMENT
+		raise errors.HTTP_403_NOT_FRIEND
 	events: NotificationEvents = []
 	comment = create_comment(user_id=user_id, body=req.body, session=session, current_user=current_user, events=events)
 	session.commit()

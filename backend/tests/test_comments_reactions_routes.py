@@ -64,7 +64,7 @@ def test_non_friend_cannot_add_comment_on_private_top10(client, session):
     _register_and_login(client, BOB)
 
     res = client.post(_comments_url(alice_id), json={"body": "Nice list!"})
-    assert res.status_code == 422
+    assert res.status_code == 403
 
 
 # ── Comments — friendship required to edit ───────────────────────────
@@ -196,7 +196,7 @@ def test_top10_owner_cannot_delete_others_reaction(client):
     assert res.status_code == 404
 
 
-def test_non_friend_cannot_delete_reaction(client):
+def test_reaction_author_can_delete_after_unfriending(client):
     alice_id = _register_and_login(client, ALICE)
     bob_id = _register_and_login(client, BOB)
     _make_friends(client, ALICE, BOB, alice_id, bob_id)
@@ -277,7 +277,7 @@ def test_non_friend_can_edit_comment_on_public_top10(client, session):
 def test_non_friend_can_read_comments_on_public_top10(client, session):
     alice_id = _register_and_login(client, ALICE)
     _set_top10_public(session, alice_id, True)
-    bob_id = _register_and_login(client, BOB)
+    _register_and_login(client, BOB)
 
     # Bob comments (public top10 allows it)
     client.post(_comments_url(alice_id), json={"body": "Cool taste!"})
@@ -373,7 +373,7 @@ def test_blocked_user_cannot_comment_on_public_top10(client, session):
 
     _login(client, BOB)
     res = client.post(_comments_url(alice_id), json={"body": "Spam!"})
-    assert res.status_code == 422
+    assert res.status_code == 403
 
 
 def test_blocked_user_cannot_react_to_public_top10(client, session):

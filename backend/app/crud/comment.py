@@ -9,15 +9,15 @@ from app.notifications import advance_updated_at, record_action
 
 
 def _can_interact(session: Session, owner_id: int, current_user: User) -> bool:
-    """True if current_user is the owner, friends with owner, or the owner's top10 is public — and not blocked."""
-    if owner_id == current_user.id:
-        return True
-    if is_blocked(session, owner_id, current_user.id):
-        return False
-    if are_friends(session=session, a=owner_id, b=current_user.id):
-        return True
-    profile = session.query(Profile).filter(Profile.user_id == owner_id).first()
-    return profile is not None and profile.is_top10_public
+	"""True if current_user is the owner, friends with owner, or the owner's top10 is public — and not blocked."""
+	if owner_id == current_user.id:
+		return True
+	if is_blocked(session, owner_id, current_user.id):
+		return False
+	if are_friends(session=session, a=owner_id, b=current_user.id):
+		return True
+	profile = session.query(Profile).filter(Profile.user_id == owner_id).first()
+	return profile is not None and profile.is_top10_public
 
 class CommentCreate(BaseModel):
 	body: str
@@ -35,14 +35,6 @@ def read_comments(user_id: int, session: Session, current_user: User):
 	return session.query(Top10Comment).where(
 		Top10Comment.top10_owner_id == user_id
 	).order_by(Top10Comment.updated_at.desc()).all()
-
-def read_comment(comment_id: int, user_id: int, session: Session, current_user: User):
-	return session.query(Top10Comment).where(
-		and_(
-			Top10Comment.id == comment_id,
-			Top10Comment.top10_owner_id == user_id,
-		)
-	).first()
 
 def update_comment(comment_id: int, user_id: int, body: str, session: Session, current_user: User, events: NotificationEvents | None = None):
 	top10comment = session.query(Top10Comment).where(

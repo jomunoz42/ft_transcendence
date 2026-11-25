@@ -4,6 +4,7 @@ HTTP_400_BAD_REQUEST				= HTTPException(status.HTTP_400_BAD_REQUEST, "Bad reques
 HTTP_401_UNAUTHORIZED				= HTTPException(status.HTTP_401_UNAUTHORIZED, "Not logged in")
 HTTP_401_INVALID_CREDENTIALS		= HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 HTTP_401_USER_DELETED				= HTTPException(status.HTTP_401_UNAUTHORIZED, "User was deleted")
+HTTP_403_FORBIDDEN					= HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
 HTTP_403_NOT_FRIEND					= HTTPException(status.HTTP_403_FORBIDDEN, "Not friend")
 HTTP_404_NOT_FOUND					= HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
 HTTP_404_USER_NOT_FOUND				= HTTPException(status.HTTP_404_NOT_FOUND, "User not found")

@@ -60,9 +60,9 @@ def create_top10(user_id: int, data: Top10Add, session: Session) -> Top10Entry:
 	entry = Top10Entry(user_id=user_id, song_id=song.id, rank=data.rank)
 	session.add(entry)
 	try:
-		session.flush()
+		with session.begin_nested():
+			session.flush()
 	except IntegrityError:
-		session.rollback()
 		raise errors.HTTP_409_CONFLICT
 	return entry
 

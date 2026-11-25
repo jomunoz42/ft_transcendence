@@ -1,5 +1,3 @@
-# TODO: standardize all files
-# TODO: Force types in all functions
 from app.db.models import User, Top10Reaction
 from app.crud.comment import _can_interact
 from app import errors

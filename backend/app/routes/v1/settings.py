@@ -1,4 +1,3 @@
-# TODO: remove the "" and "/"
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import end_session
 from fastapi import APIRouter, Cookie, Depends, Response

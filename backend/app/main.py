@@ -1,9 +1,3 @@
-# TODO: Update HTTPExceptions to match the right error status code
-# TODO: Add tests
-# TODO: Update current_user_id with Andre's function
-# TODO: Add current_user to any current_user-only function (eg. updatetop10)
-# TODO: Review class exception
-
 import asyncio
 import logging
 from contextlib import asynccontextmanager
