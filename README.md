@@ -19,12 +19,56 @@ TODO: Describe how the team organizes work, distributes tasks, reviews code, com
 | Frontend | React + Vite + TypeScript | Component-based frontend with fast local development. |
 | Backend | Python + FastAPI | Lightweight API framework with WebSocket support. |
 | Database | PostgreSQL | Relational database for users, profiles, social data, and application state. |
+| ORM | SQLAlchemy 2 + Alembic | Typed Python models for every table; Alembic migrations keep the database schema in step with the models. |
 | Styling solution | TODO | TODO |
 | Deployment | Docker Compose | Runs the application services through a single development stack. |
 
 ## Database Schema
 
-TODO: Add a visual representation or clear text description of the database schema, including tables/collections, key fields, data types, and relations.
+PostgreSQL, accessed only through the SQLAlchemy ORM. Every table is a class in `backend/app/db/models.py`.
+
+```mermaid
+erDiagram
+    users ||--|| profiles : "has"
+    users ||--o{ sessions : "logs in with"
+    users ||--o{ top10_entries : "ranks"
+    songs ||--o{ top10_entries : "is ranked in"
+    users ||--o{ friendships : "requester"
+    users ||--o{ friendships : "addressee"
+    users ||--o{ blocks : "blocker"
+    users ||--o{ blocks : "blocked"
+    users ||--o{ top10_comments : "owns the Top 10"
+    users ||--o{ top10_comments : "writes"
+    users ||--o{ top10_reactions : "owns the Top 10"
+    users ||--o{ top10_reactions : "reacts"
+    users ||--o{ notifications : "receives"
+    users |o--o{ notifications : "caused"
+```
+
+| Table | Holds | Key fields and rules |
+| --- | --- | --- |
+| `users` | Accounts | `email` unique and lowercase, `password_hash` (argon2, never the password), failed login counter and `locked_until` for lockout, `deleted_at` for GDPR soft delete |
+| `profiles` | Public profile, one per user | `display_name`, `avatar_url`, `bio`, `is_top10_public`, `is_online`, `last_seen_at` |
+| `sessions` | Logged-in browsers | `token_hash` (SHA-256 of the cookie token; the token itself is never stored), `expires_at` |
+| `songs` | Songs from Spotify or added by hand | unique `(provider, provider_id)`, `title`, `artist`, `album`, `cover_url` |
+| `top10_entries` | A user's Top 10 | `rank` 1 to 10; each rank and each song at most once per user |
+| `friendships` | Friend requests and friends | `requester_id`, `addressee_id`, `status` pending / accepted / declined; one row per pair whatever the direction; nobody can befriend themselves |
+| `blocks` | Who blocked whom | primary key `(blocker_id, blocked_id)`; nobody can block themselves |
+| `top10_comments` | Comments on a Top 10 | `top10_owner_id`, `author_id`, `body` (never blank) |
+| `top10_reactions` | Like or dislike on a Top 10 | one reaction per user per Top 10; `like` or `dislike` only; not on your own Top 10 |
+| `notifications` | Events shown to a user (friend requests, comments, reactions) | `recipient_id`, `actor_id` (who caused it, may be empty), `event_type`, `message`, `read_at`; unique `(recipient_id, event_key)` so the same event is stored once; index on `(recipient_id, created_at)` for the newest-first list |
+
+Types: ids and foreign keys are `BIGINT`, text fields are `VARCHAR`, times are `TIMESTAMPTZ` (with time zone), flags are `BOOLEAN`, other numbers (`rank`, `failed_login_count`, `duration_ms`) are `INTEGER`, and `songs.metadata` is `JSON`.
+
+Deleting a user's row deletes their profile, sessions, Top 10, friendships, blocks, comments, reactions and received notifications (`ON DELETE CASCADE`). Notifications they caused for others stay, with `actor_id` set to empty (`ON DELETE SET NULL`). Deleting an account from the app is a soft delete (`deleted_at`) for now; removing the data is part of #57. A song cannot be deleted while it is in someone's Top 10 (`ON DELETE RESTRICT`).
+
+The rules above are enforced by PostgreSQL itself (unique indexes, `CHECK` constraints, foreign keys), not only by the application code, so concurrent requests cannot break them.
+
+### ORM and migrations
+
+- **Models** (`backend/app/db/models.py`): SQLAlchemy 2 declarative classes with typed columns and relationships, for example `user.profile`, `friendship.requester`, `comment.author`. Routes and helpers read and write through these classes; the app sends no hand-written SQL (checked by `backend/tests/test_orm_end_to_end.py`).
+- **Migrations** (`backend/alembic/versions/`): Alembic compares the models with the database and generates one migration per schema change. `make migrate` runs `alembic upgrade head` and brings an empty or old database to the current schema.
+- **Changing the schema**: edit the model, generate a migration with `alembic revision --autogenerate`, review it, then run `make migrate`. `alembic check` reports any model change that has no migration yet.
 
 ## Features List
 
