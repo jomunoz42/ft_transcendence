@@ -23,6 +23,49 @@ TODO: Describe how the team organizes work, distributes tasks, reviews code, com
 | Styling solution | TODO | TODO |
 | Deployment | Docker Compose | Runs the application services through a single development stack. |
 
+## System Architecture
+
+```mermaid
+flowchart LR
+    browser["User browser"]
+    operator["Host loopback<br/>127.0.0.1"]
+    spotify["Spotify Accounts + Web API<br/>(external provider)"]
+
+    subgraph compose["Docker Compose default network"]
+        caddy["Caddy<br/>TLS termination + HTTP redirect<br/>host ports 80, 443"]
+        frontend["React + TypeScript<br/>Vite :5173 (internal only)"]
+        backend["Python + FastAPI<br/>SQLAlchemy + Alembic<br/>:8000 (internal only)"]
+        postgres[("PostgreSQL 17<br/>:5432")]
+        prometheus["Prometheus<br/>:9090"]
+        grafana["Grafana<br/>:3000"]
+    end
+
+    subgraph storage["Persistent named volumes"]
+        caddy_vol["caddy_data + caddy_config"]
+        postgres_vol["postgres_data"]
+        prometheus_vol["prometheus_data"]
+        grafana_vol["grafana_data"]
+    end
+
+    browser -->|"HTTP :80 (redirect to HTTPS)"| caddy
+    browser -->|"HTTPS / WSS :443"| caddy
+    caddy -->|"HTTP :5173 (UI)"| frontend
+    caddy -->|"HTTP REST / WS :8000<br/>/api/* and /ws"| backend
+    backend -->|"SQLAlchemy / Alembic<br/>TCP :5432"| postgres
+    backend -->|"HTTPS token + song search"| spotify
+    prometheus -->|"HTTP GET :8000/metrics<br/>every 15 seconds"| backend
+    grafana -->|"HTTP queries :9090"| prometheus
+    operator -->|"127.0.0.1:5432 (default)"| postgres
+    operator -->|"127.0.0.1:9090"| prometheus
+    operator -->|"127.0.0.1:3000"| grafana
+    caddy -.- caddy_vol
+    postgres -.- postgres_vol
+    prometheus -.- prometheus_vol
+    grafana -.- grafana_vol
+```
+
+Caddy serves the Vite frontend and sends `/api/*` and `/ws` directly to FastAPI. Browser traffic uses HTTPS/WSS; proxy traffic inside Compose uses HTTP/WS. Only Caddy publishes ports on all host interfaces. PostgreSQL, Prometheus, and Grafana publish loopback-only ports; the frontend and backend have no host ports. The PostgreSQL host port defaults to 5432 and can be changed with `POSTGRES_PORT`. The backend runs Alembic migrations before starting. Spotify is the only merged external API integration shown here; 42 OAuth and avatar upload are not merged into `main`, and account deletion currently uses a GDPR soft delete rather than a completed purge.
+
 ## Database Schema
 
 PostgreSQL, accessed only through the SQLAlchemy ORM. Every table is a class in `backend/app/db/models.py`.
