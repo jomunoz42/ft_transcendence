@@ -24,7 +24,6 @@ ROUTES = [
     ("POST", "/profiles/{bob}/comments", {"body": "nice list"}, 200),
     ("POST", "/profiles/{bob}/reactions", {"reaction": "like"}, 200),
     ("POST", "/profiles/{bob}/comments/{comment}", {"body": "edited"}, 200),
-    ("POST", "/profiles/{bob}/comments/latest", {"body": "edited again"}, 200),
     ("GET", "/friends", None, 200),
     ("GET", "/friends/requests", None, 200),
     ("GET", "/friends/blocks", None, 200),

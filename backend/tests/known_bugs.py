@@ -12,8 +12,6 @@ _COMMENT = "tests/test_input_validation.py::test_a_bad_comment_is_refused_withou
 _PATH_ID = "tests/test_input_validation.py::test_a_bad_id_in_the_path_is_refused_without_a_server_error"
 
 KNOWN_BUGS = {
-    "tests/test_backend.py::test_backend_authorized[req19-exp19]":
-        ("Victor", "update_profile reorders the Top 10 into a UniqueViolation on top10_entries (user_id, rank)"),
     f"{_SETTINGS}[0]": ("Victor", "POST /settings accepts an invalid email"),
     f"{_SETTINGS}[1]": ("Victor", "POST /settings accepts an empty email"),
     f"{_SETTINGS}[2]": ("Victor", "POST /settings with another user's email gives 500, not 409"),

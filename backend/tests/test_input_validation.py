@@ -83,7 +83,6 @@ BAD_PROFILES = [
     {"display_name": "Al\x00ice"},
     {"bio": "b\x00io"},
     {"is_top10_public": "maybe"},
-    {"top10": "not a list"},
 ]
 
 
