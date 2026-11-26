@@ -33,18 +33,85 @@ erDiagram
     users ||--o{ sessions : "logs in with"
     users ||--o{ top10_entries : "ranks"
     songs ||--o{ top10_entries : "is ranked in"
-    users ||--o{ friendships : "requester"
-    users ||--o{ friendships : "addressee"
-    users ||--o{ blocks : "blocker"
-    users ||--o{ blocks : "blocked"
-    users ||--o{ top10_comments : "owns the Top 10"
-    users ||--o{ top10_comments : "writes"
-    users ||--o{ top10_reactions : "owns the Top 10"
-    users ||--o{ top10_reactions : "reacts"
-    users ||--o{ notifications : "receives"
-    users |o--o{ notifications : "caused"
-    users ||--o{ messages : "sends"
-    users ||--o{ messages : "receives"
+    users ||--o{ friendships : "asks / is asked"
+    users ||--o{ blocks : "blocks / is blocked"
+    users ||--o{ top10_comments : "owns / writes"
+    users ||--o{ top10_reactions : "owns / reacts"
+    users ||--o{ notifications : "receives / causes"
+    users ||--o{ messages : "sends / receives"
+
+    users {
+        bigint id PK
+        varchar email UK
+        varchar password_hash
+        int failed_login_count
+        timestamptz locked_until
+        timestamptz deleted_at
+    }
+    profiles {
+        bigint id PK
+        bigint user_id FK,UK
+        varchar display_name
+        varchar avatar_url
+        boolean is_top10_public
+        boolean is_online
+    }
+    sessions {
+        bigint id PK
+        bigint user_id FK
+        varchar token_hash UK
+        timestamptz expires_at
+    }
+    songs {
+        bigint id PK
+        varchar provider
+        varchar provider_id
+        varchar title
+        varchar artist
+    }
+    top10_entries {
+        bigint id PK
+        bigint user_id FK
+        bigint song_id FK
+        int rank "1-10, unique per user"
+    }
+    friendships {
+        bigint id PK
+        bigint requester_id FK
+        bigint addressee_id FK
+        varchar status "pending, accepted, declined"
+    }
+    blocks {
+        bigint blocker_id PK,FK
+        bigint blocked_id PK,FK
+    }
+    top10_comments {
+        bigint id PK
+        bigint top10_owner_id FK
+        bigint author_id FK
+        varchar body
+    }
+    top10_reactions {
+        bigint id PK
+        bigint top10_owner_id FK
+        bigint author_id FK
+        varchar reaction "like or dislike"
+    }
+    notifications {
+        bigint id PK
+        bigint recipient_id FK
+        bigint actor_id FK "may be empty"
+        varchar event_type
+        varchar event_key
+        timestamptz read_at
+    }
+    messages {
+        bigint id PK
+        bigint sender_id FK
+        bigint recipient_id FK
+        varchar body "1-1000 chars"
+        timestamptz created_at
+    }
 ```
 
 | Table | Holds | Key fields and rules |
