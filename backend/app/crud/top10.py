@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_
+from sqlalchemy import and_, case, update
 from pydantic import BaseModel
 from typing import Literal
 from app.db.models import Top10Entry, Song
@@ -83,35 +83,28 @@ def read_top10(user_id: int, top10_id: int, session: Session) -> Top10Entry | No
 	).first()
 
 def update_top10(user_id: int, top10_id: int, data: Top10Update, session: Session) -> Top10Entry:
-	entry = session.query(Top10Entry).filter(
-		and_(Top10Entry.id == top10_id, Top10Entry.user_id == user_id)
-	).populate_existing().with_for_update().first()
+	"""Move one of the user's entries to `data.rank`; if that rank is taken, the two entries swap ranks.
+
+	Both entries keep their ids. All the user's entries are locked in id order first, so concurrent
+	moves on the same Top 10 wait for each other instead of deadlocking. 404 if the entry is not the
+	user's; 409 if a concurrent add takes the target rank first.
+	"""
+	entries = session.query(Top10Entry).filter(Top10Entry.user_id == user_id).order_by(Top10Entry.id).populate_existing().with_for_update().all()
+	entry = next((e for e in entries if e.id == top10_id), None)
 	if not entry:
 		raise errors.HTTP_404_NOT_FOUND
 	if entry.rank == data.rank:
 		return entry
-	old_rank = entry.rank
-	new_rank = data.rank
-	other = session.query(Top10Entry).filter(
-		and_(Top10Entry.user_id == user_id, Top10Entry.rank == new_rank)
-	).populate_existing().with_for_update().first()
+	new_rank_by_id = {entry.id: data.rank}
+	other = next((e for e in entries if e.rank == data.rank), None)
 	if other:
-		# Swap: delete both, flush to free the ranks, re-insert with swapped ranks
-		entry_song_id = entry.song_id
-		other_song_id = other.song_id
-		session.delete(entry)
-		session.delete(other)
-		session.flush()
-		new_entry = Top10Entry(user_id=user_id, song_id=entry_song_id, rank=new_rank)
-		new_other = Top10Entry(user_id=user_id, song_id=other_song_id, rank=old_rank)
-		session.add(new_entry)
-		session.add(new_other)
-		session.flush()
-		return new_entry
-	else:
-		entry.rank = new_rank
-		session.flush()
-		return entry
+		new_rank_by_id[other.id] = entry.rank
+	try:
+		with session.begin_nested():
+			session.execute(update(Top10Entry).where(Top10Entry.id.in_(new_rank_by_id)).values(rank=case(new_rank_by_id, value=Top10Entry.id)))
+	except IntegrityError:
+		raise errors.HTTP_409_CONFLICT
+	return entry
 
 def delete_top10(user_id: int, top10_id: int, session: Session):
 	entry = session.query(Top10Entry).filter(
