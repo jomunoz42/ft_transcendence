@@ -14,11 +14,18 @@ PROFILES = "/api/v1/profiles"
 FRIENDS = "/api/v1/friends"
 ALICE = {"email": "alice@x.com", "password": "hunter22", "display_name": "Alice"}
 BOB = {"email": "bob@x.com", "password": "hunter33", "display_name": "Bob"}
+CAROL = {"email": "carol@x.com", "password": "hunter44", "display_name": "Carol"}
 
 
 @pytest.fixture
 def other_browser(client):
     """A second browser: same app and test database as `client`, separate cookies."""
+    return TestClient(app, base_url="https://testserver")
+
+
+@pytest.fixture
+def third_browser(client):
+    """A third browser with its own cookies, like `other_browser`."""
     return TestClient(app, base_url="https://testserver")
 
 
@@ -55,17 +62,50 @@ def test_each_user_gets_their_own_profile_from_profiles_me(client, other_browser
     assert other_browser.get(PROFILE_ME).json()["display_name"] == "Bob"
 
 
-def test_a_user_cannot_edit_or_delete_another_users_comment(client, other_browser):
+def befriend(asker, asker_id: int, accepter, accepter_id: int) -> None:
+    """Make the two logged-in users friends through the friend routes."""
+    asker.post(f"{FRIENDS}/request/{accepter_id}")
+    accepter.post(f"{FRIENDS}/accept/{asker_id}")
+
+
+@pytest.fixture
+def bob_comments_on_alice(client, other_browser, third_browser):
+    """Alice (client), Bob (other_browser) and Carol (third_browser), all friends with Alice; Bob comments on Alice's Top 10.
+
+    Returns the comments URL on Alice's page and the id of Bob's comment.
+    """
     alice_id = log_in(client, ALICE)
     bob_id = log_in(other_browser, BOB)
-    client.post(f"{FRIENDS}/request/{bob_id}")
-    other_browser.post(f"{FRIENDS}/accept/{alice_id}")
-    other_browser.post(f"{PROFILES}/{alice_id}/comments", json={"body": "great taste"})
-    comment = f"{PROFILES}/{alice_id}/comments"
-    comment_id = other_browser.get(comment).json()[0]["id"]
+    carol_id = log_in(third_browser, CAROL)
+    befriend(client, alice_id, other_browser, bob_id)
+    befriend(client, alice_id, third_browser, carol_id)
+    comments = f"{PROFILES}/{alice_id}/comments"
+    other_browser.post(comments, json={"body": "great taste"})
+    return comments, other_browser.get(comments).json()[0]["id"]
 
-    edited = client.post(f"{comment}/{comment_id}", json={"body": "changed by Alice"})
-    deleted = client.delete(f"{comment}/{comment_id}")
 
-    assert (edited.status_code, deleted.status_code) == (404, 404)
-    assert [c["body"] for c in other_browser.get(comment).json()] == ["great taste"]
+def test_the_top10_owner_cannot_edit_someone_elses_comment(client, other_browser, bob_comments_on_alice):
+    comments, comment_id = bob_comments_on_alice
+
+    edited = client.post(f"{comments}/{comment_id}", json={"body": "changed by Alice"})
+
+    assert edited.status_code == 404
+    assert [c["body"] for c in other_browser.get(comments).json()] == ["great taste"]
+
+
+def test_a_third_user_cannot_delete_someone_elses_comment(other_browser, third_browser, bob_comments_on_alice):
+    comments, comment_id = bob_comments_on_alice
+
+    deleted = third_browser.delete(f"{comments}/{comment_id}")
+
+    assert deleted.status_code == 404
+    assert [c["body"] for c in other_browser.get(comments).json()] == ["great taste"]
+
+
+def test_the_top10_owner_can_delete_a_comment_on_their_page(client, other_browser, bob_comments_on_alice):
+    comments, comment_id = bob_comments_on_alice
+
+    deleted = client.delete(f"{comments}/{comment_id}")
+
+    assert deleted.status_code == 200
+    assert other_browser.get(comments).json() == []
