@@ -10,7 +10,7 @@ from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import start_session
 from sqlalchemy import delete, func, select
 
-from app.db.models import Avatar, Profile, User
+from app.db.models import Avatar, Block, Profile, User
 
 DEFAULT_URL = "/api/v1/avatars/default"
 UPLOAD = "/api/v1/profiles/me/avatar"
@@ -159,4 +159,23 @@ def test_a_deleted_account_avatar_is_no_longer_served(session, client, alice):
     client.cookies.set(SESSION_COOKIE_NAME, start_session(session, bob))
     alice.deleted_at = datetime.datetime.now(datetime.timezone.utc)
     session.commit()
+    assert client.get(url).status_code == 404
+
+
+def test_an_uploaded_avatar_is_never_cached_but_the_default_is(client, alice):
+    url = upload(client, image_bytes("PNG")).json()["avatar_url"]
+
+    assert client.get(url).headers["cache-control"] == "private, no-store"
+    assert client.get(DEFAULT_URL).headers["cache-control"] == "public, max-age=86400"
+
+
+@pytest.mark.parametrize("alice_blocks", [True, False], ids=["alice blocks bob", "bob blocks alice"])
+def test_a_block_either_way_hides_the_avatar(session, client, alice, alice_blocks):
+    url = upload(client, image_bytes("PNG")).json()["avatar_url"]
+    bob = make_user(session, "bob@avatar.test")
+    blocker, blocked = (alice, bob) if alice_blocks else (bob, alice)
+    session.add(Block(blocker_id=blocker.id, blocked_id=blocked.id))
+    client.cookies.set(SESSION_COOKIE_NAME, start_session(session, bob))
+    session.commit()
+
     assert client.get(url).status_code == 404

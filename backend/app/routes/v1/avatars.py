@@ -7,6 +7,7 @@ from app.auth.current_user import current_user
 from app.crud.avatar import (
     MAX_BYTES, AvatarTooLarge, NotAnAcceptedImage, delete_avatar, process_image, read_avatar, save_avatar,
 )
+from app.crud.friendship import is_blocked
 from app.db import get_session
 from app.db.models import User
 from app import errors
@@ -56,11 +57,11 @@ def default_avatar() -> Response:
 
 @router.get("/avatars/{user_id}")
 def get_avatar(user_id: int, me: User = Depends(current_user), session: Session = Depends(get_session)) -> Response:
-    """Someone's uploaded avatar as WebP, for logged-in users; 404 if they have none."""
-    data = read_avatar(session, user_id)
+    """Someone's uploaded avatar as WebP, for logged-in users; 404 if they have none or either of us blocked the other."""
+    data = None if is_blocked(session, me.id, user_id) else read_avatar(session, user_id)
     if data is None:
         raise errors.HTTP_404_NOT_FOUND
-    # The URL carries a hash of the image, so a cached copy can never be outdated.
+    # no-store: a cached copy would still show after logout, a block or account deletion.
     return Response(data, media_type="image/webp", headers={
-        "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=31536000, immutable",
+        "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store",
     })
