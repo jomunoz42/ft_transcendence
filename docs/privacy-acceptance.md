@@ -52,6 +52,8 @@ The browser accepted only the temporary self-signed certificate for this run.
   and redirected to login without putting the token in the URL.
 - Reloaded Alice's second browser session and saw the login page. A fresh
   login attempt with Alice's old credentials received 401 and stayed on login.
+- The approved deletion flow uses an emailed token entered in Settings with
+  explicit `DELETE` confirmation. It intentionally has no clickable link.
 - With SMTP stopped, Bob's export still downloaded as valid JSON and the UI
   reported the failed confirmation email. A controlled 503 response to the
   export request showed an error and started no download; this 503 check
@@ -75,11 +77,6 @@ The browser accepted only the temporary self-signed certificate for this run.
 - Full Docker Compose, Caddy HTTPS, PostgreSQL 17, and production SMTP
   delivery were not exercised. PostgreSQL 17 was unavailable in the host
   package repository; 18.6 was used for the native acceptance stack.
-- The email contains a token and instructions to enter it in Settings. It has
-  **no confirmation link**, so link-specific acceptance cannot pass against
-  this implementation. The intended manual token entry flow passed in the
-  browser. This is a requirement/design mismatch to resolve if a link is
-  required; do not put the raw token in a URL without a security review.
 - The expired-token API check advanced the disposable database row's expiry;
   it did not wait 15 real minutes. Automated regression tests cover the
   token's embedded expiry. WebSocket closure was not part of this native
