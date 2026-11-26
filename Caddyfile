@@ -6,6 +6,14 @@
 localhost, 127.0.0.1 {
 	tls internal
 
+	@avatar_upload {
+		method PUT
+		path /api/v1/profiles/me/avatar
+	}
+	request_body @avatar_upload {
+		max_size 3MB
+	}
+
 	@backend path /api/* /ws
 	handle @backend {
 		reverse_proxy backend:8000
