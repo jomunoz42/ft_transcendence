@@ -119,7 +119,7 @@ def block_user(session: Session, me_id: int, them_id: int) -> None:
     if session.get(Block, (me_id, them_id)) is not None:
         return
 
-    row = read_friendship(session, me_id, them_id)
+    row = read_friendship(session, me_id, them_id, for_update=True)
     if row is not None:
         session.delete(row)
     session.flush()
