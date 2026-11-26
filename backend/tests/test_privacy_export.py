@@ -7,7 +7,7 @@ import pytest
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import start_session
 from app.db.models import (
-    Block, Friendship, Notification, Profile, Song, Top10Comment,
+    Block, Friendship, Message, Notification, Profile, Song, Top10Comment,
     Top10Entry, Top10Reaction, User,
 )
 from app.mail import MailDeliveryError, get_mailer
@@ -68,7 +68,7 @@ def test_empty_export_is_readable_versioned_and_delivered_to_account_email(sessi
     assert response.content.endswith(b"\n")
     assert b"\n  \"account\"" in response.content
     exported = json.loads(response.content)
-    assert exported["format_version"] == 2
+    assert exported["format_version"] == 3
     assert exported["exported_at"]
     assert exported["account"]["email"] == "alice@privacy.test"
     assert set(exported["account"]) == {
@@ -77,7 +77,7 @@ def test_empty_export_is_readable_versioned_and_delivered_to_account_email(sessi
     }
     assert exported["profile"]["display_name"] == "Alice"
     assert exported["deletion_request"] is None
-    for section in ("top10", "friendships", "blocks", "authored_comments", "reactions", "received_notifications"):
+    for section in ("top10", "friendships", "blocks", "authored_comments", "reactions", "received_notifications", "messages"):
         assert exported[section] == []
     assert mailer.recipients == ["alice@privacy.test"]
 
@@ -137,6 +137,51 @@ def test_populated_export_is_scoped_and_excludes_secrets(session, client, mailer
     assert bob_export["account"]["email"] == "bob@privacy.test"
     assert "My own comment" not in json.dumps(bob_export)
     assert mailer.recipients == ["alice@privacy.test", "bob@privacy.test"]
+
+
+def test_message_export_includes_both_directions_once_and_excludes_other_conversations(session, client, mailer):
+    alice = make_user(session, "alice@privacy.test", "Alice")
+    bob = make_user(session, "bob@privacy.test", "Bob")
+    carol = make_user(session, "carol@privacy.test", "Carol")
+    dave = make_user(session, "dave@privacy.test", "Dave")
+    alice_id, bob_id, carol_id, dave_id = alice.id, bob.id, carol.id, dave.id
+    rows = [
+        Message(sender_id=alice_id, recipient_id=bob_id, body="Hello Bob 🎵"),
+        Message(sender_id=bob_id, recipient_id=alice_id, body="Hello Alice"),
+        Message(sender_id=alice_id, recipient_id=carol_id, body="Hello Carol"),
+        Message(sender_id=carol_id, recipient_id=alice_id, body="Hi Alice"),
+        Message(sender_id=bob_id, recipient_id=carol_id, body="Bob and Carol secret"),
+        Message(sender_id=dave_id, recipient_id=bob_id, body="Dave and Bob secret"),
+    ]
+    session.add_all(rows)
+    session.flush()
+    expected = {row.id for row in rows[:4]}
+    unrelated = {row.id for row in rows[4:]}
+    log_in(session, client, alice)
+
+    response = client.post(URL, params={"user_id": bob_id}, json={"user_id": bob_id})
+
+    assert response.status_code == 200
+    exported = response.json()
+    messages = exported["messages"]
+    assert len(messages) == 4
+    assert {row["id"] for row in messages} == expected
+    assert not ({row["id"] for row in messages} & unrelated)
+    assert {row["body"] for row in messages} == {
+        "Hello Bob 🎵", "Hello Alice", "Hello Carol", "Hi Alice",
+    }
+    assert all(set(row) == {"id", "sender_id", "recipient_id", "body", "created_at"} for row in messages)
+    assert all(row["created_at"] and row["created_at"].endswith("+00:00") for row in messages)
+    assert all(alice_id in (row["sender_id"], row["recipient_id"]) for row in messages)
+    assert "Bob and Carol secret" not in response.text
+    assert "Dave and Bob secret" not in response.text
+    assert "password_hash" not in response.text
+    assert mailer.recipients == ["alice@privacy.test"]
+
+    log_in(session, client, bob)
+    bob_messages = client.post(URL).json()["messages"]
+    assert {row["id"] for row in bob_messages} == {rows[0].id, rows[1].id, rows[4].id, rows[5].id}
+    assert all(bob_id in (row["sender_id"], row["recipient_id"]) for row in bob_messages)
 
 
 def test_email_failure_still_returns_export_without_logging_sensitive_details(session, client, mailer, caplog):

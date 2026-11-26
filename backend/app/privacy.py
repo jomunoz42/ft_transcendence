@@ -6,12 +6,12 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
-    Block, DeletionRequest, Friendship, Notification, Profile, Song, Top10Comment,
+    Block, DeletionRequest, Friendship, Message, Notification, Profile, Song, Top10Comment,
     Top10Entry, Top10Reaction, User,
 )
 from app.notifications import MESSAGES
 
-EXPORT_VERSION = 2
+EXPORT_VERSION = 3
 
 
 def _timestamp(value: datetime.datetime | None) -> str | None:
@@ -49,6 +49,11 @@ def build_user_export(session: Session, user: User) -> dict:
     ).all()
     notifications = session.scalars(
         select(Notification).where(Notification.recipient_id == user_id).order_by(Notification.id)
+    ).all()
+    messages = session.scalars(
+        select(Message)
+        .where(or_(Message.sender_id == user_id, Message.recipient_id == user_id))
+        .order_by(Message.created_at, Message.id)
     ).all()
 
     return {
@@ -142,5 +147,15 @@ def build_user_export(session: Session, user: User) -> dict:
                 "read_at": _timestamp(row.read_at),
             }
             for row in notifications
+        ],
+        "messages": [
+            {
+                "id": row.id,
+                "sender_id": row.sender_id,
+                "recipient_id": row.recipient_id,
+                "body": row.body,
+                "created_at": _timestamp(row.created_at),
+            }
+            for row in messages
         ],
     }

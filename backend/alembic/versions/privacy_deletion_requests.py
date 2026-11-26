@@ -1,14 +1,14 @@
 """Store the latest deletion challenge per account.
 
 Revision ID: 7c9e2b63d4a1
-Revises: 859639bf8792
+Revises: c85ea1da6073
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "7c9e2b63d4a1"
-down_revision = "859639bf8792"
+down_revision = "c85ea1da6073"
 branch_labels = None
 depends_on = None
 

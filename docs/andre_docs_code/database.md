@@ -42,7 +42,10 @@ everything that belongs to them.
 | `Block` / `blocks` | one row per block: `blocker_id` blocked `blocked_id` | no self-block; one block per (blocker, blocked); Alice and Bob can each block the other |
 | `Top10Comment` / `top10_comments` | a comment on someone's Top 10 (`top10_owner_id`, `author_id`) | not blank; owners may comment on their own (to reply) |
 | `Top10Reaction` / `top10_reactions` | a `like` or `dislike` on someone's Top 10 | one per person per Top 10; not on your own |
+| `Message` / `messages` | private message with sender, recipient, body, and creation time | no self-messages or blank body; deleting either participant cascades to the message |
 | `UserSession` / `sessions` | one row per logged-in browser: SHA-256 of the cookie token + expiry | token hash unique; expiry required |
+| `Notification` / `notifications` | one recipient's event notification | deleting its recipient cascades; deleting an actor clears the actor ID |
+| `DeletionRequest` / `privacy_deletion_requests` | hash and expiry of the latest account deletion token | one challenge per user; deleting its user cascades |
 
 Not enforced by the database, so **your code must check these**:
 - Who can see a Top 10: `is_top10_public = False` means friends only.

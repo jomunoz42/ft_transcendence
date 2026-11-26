@@ -12,7 +12,7 @@ from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import start_session, user_for_token
 from app.auth import websocket as websocket_auth
 from app.db.models import (
-    Block, DeletionRequest, Friendship, Notification, Profile, Song,
+    Block, DeletionRequest, Friendship, Message, Notification, Profile, Song,
     Top10Comment, Top10Entry, Top10Reaction, User, UserSession,
 )
 from app.mail import MailDeliveryError, get_mailer
@@ -99,6 +99,8 @@ def test_request_without_confirm_or_with_wrong_phrase_does_not_delete(session, c
     log_in(session, client, alice)
     token = request_token(client, mailer)
     assert client.delete("/api/v1/settings").status_code == 405
+    assert client.get("/api/v1/settings").status_code == 200
+    assert client.post("/api/v1/settings", json={}).status_code == 200
     assert confirm(client, token, "CANCEL").status_code == 422
     assert count_for(session, "users", "id", alice_id) == 1
     row = session.get(DeletionRequest, alice_id)
@@ -258,6 +260,11 @@ def test_hard_delete_cascades_and_anonymizes_retained_notifications(session, cli
         Notification(recipient_id=alice_id, actor_id=bob_id, event_type="comment.created", message="My inbox", event_key="mine:1"),
         Notification(recipient_id=bob_id, actor_id=alice_id, event_type="comment.created", message="Alice personal data", event_key=f"alice:{alice_id}:secret"),
         Notification(recipient_id=bob_id, actor_id=carol_id, event_type="friend_request.created", message="Unrelated", event_key="unrelated:1"),
+        Message(sender_id=alice_id, recipient_id=bob_id, body="Alice to Bob"),
+        Message(sender_id=bob_id, recipient_id=alice_id, body="Bob to Alice"),
+        Message(sender_id=alice_id, recipient_id=carol_id, body="Alice to Carol"),
+        Message(sender_id=bob_id, recipient_id=carol_id, body="Bob to Carol stays"),
+        Message(sender_id=carol_id, recipient_id=bob_id, body="Carol to Bob stays"),
     ])
     session.flush()
     first_token = log_in(session, client, alice)
@@ -279,12 +286,16 @@ def test_hard_delete_cascades_and_anonymizes_retained_notifications(session, cli
         ("top10_comments", "author_id"), ("top10_comments", "top10_owner_id"),
         ("top10_reactions", "author_id"), ("top10_reactions", "top10_owner_id"),
         ("sessions", "user_id"), ("notifications", "recipient_id"),
+        ("messages", "sender_id"), ("messages", "recipient_id"),
         ("privacy_deletion_requests", "user_id"),
     ):
         assert count_for(session, table, column, alice_id) == 0, (table, column)
     assert count_for(session, "users", "id", bob_id) == 1
     assert count_for(session, "songs", "id", song_id) == 1
     assert count_for(session, "top10_entries", "user_id", bob_id) == 1
+    assert [row.body for row in session.scalars(select(Message).order_by(Message.id)).all()] == [
+        "Bob to Carol stays", "Carol to Bob stays",
+    ]
     assert user_for_token(session, first_token) is None
     assert user_for_token(session, second_token) is None
     assert user_for_token(session, bob_token) is not None

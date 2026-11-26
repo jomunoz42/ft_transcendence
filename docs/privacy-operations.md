@@ -5,8 +5,10 @@
 `POST /api/v1/privacy/export` requires an authenticated session. It returns a
 versioned, indented UTF-8 JSON attachment containing the account, profile,
 ranked Top 10, friendships, outgoing blocks, authored comments and reactions,
-received notifications, and deletion-request timing when applicable. The
-current format version is 2. The response is marked `Cache-Control: no-store`.
+received notifications, messages sent or received by the requester, and
+deletion-request timing when applicable. The current format version is 3.
+Each message appears once with its ID, sender ID, recipient ID, body and
+creation timestamp. The response is marked `Cache-Control: no-store`.
 The export is generated in memory and is not saved on the server or sent by
 email. Credential and session hashes, other users' private text, notification
 event keys, and actor IDs are excluded. Notification descriptions use the
@@ -56,7 +58,8 @@ two users deleting at once cannot deadlock through reciprocal notifications.
 The transaction then locks the account row, anonymizes any retained
 notifications that name it as actor, and deletes the account. Existing FK
 cascades remove its profile, Top 10, friendships, blocks, comments, reactions,
-sessions, notifications, and deletion request. Shared songs and unrelated users
+messages in either direction, sessions, notifications, and deletion request.
+Shared songs, unrelated conversations, and unrelated users
 remain. Comments and reactions on the deleted user's Top 10 also disappear
 because that shared resource no longer exists. The old unconfirmed
 `DELETE /api/v1/settings` route is removed.
