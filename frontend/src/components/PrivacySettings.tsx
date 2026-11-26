@@ -114,7 +114,7 @@ export default function PrivacySettings({ onAccountDeleted }: Props) {
 
       <div className="privacy-action">
         <h3>Download your data</h3>
-        <p>The JSON download includes your account and profile, Top 10, friendships, blocks, comments, reactions, and received notifications. It excludes passwords, sessions, and other people’s private information.</p>
+        <p>The JSON download includes your account and profile, Top 10, friendships, blocks, comments, reactions, received notifications, and messages you sent or received. It excludes passwords, sessions, and other people’s private information.</p>
         <p>We attempt to email a confirmation. Your download remains available if that email fails.</p>
         <button className="button button-outline" type="button" disabled={exporting || requesting || confirming} onClick={() => void exportData()}>
           {exporting ? 'Preparing download…' : 'Download my data'}
@@ -124,7 +124,7 @@ export default function PrivacySettings({ onAccountDeleted }: Props) {
 
       <div className="privacy-action privacy-delete">
         <h3>Delete your account</h3>
-        <p>Deletion is permanent. Your profile, Top 10, comments, reactions, friendships, blocks, notifications, and sessions will be removed. Shared songs and other people’s accounts remain.</p>
+        <p>Deletion is permanent. Your profile, Top 10, comments, reactions, friendships, blocks, messages, notifications, and sessions will be removed. Shared songs and other people’s accounts remain.</p>
         <p>We send a confirmation token to your account email. It expires after 15 minutes. {cooldownText}</p>
         <button className="button button-outline" type="button" disabled={requesting || confirming || exporting || remainingSeconds > 0} onClick={() => void requestDeletion()}>
           {requesting ? 'Sending email…' : 'Email me a deletion token'}

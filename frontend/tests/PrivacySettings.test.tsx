@@ -16,7 +16,7 @@ beforeEach(() => {
 })
 
 it('downloads the attachment with the server filename and reports email failure separately', async () => {
-  const payload = { format_version: 2, account: { display_name: 'Alice' } }
+  const payload = { format_version: 3, account: { display_name: 'Alice' }, messages: [] }
   const fetch = vi.mocked(globalThis.fetch)
   fetch.mockResolvedValue(new Response(JSON.stringify(payload), {
     headers: {
