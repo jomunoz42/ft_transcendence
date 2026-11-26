@@ -43,6 +43,8 @@ erDiagram
     users ||--o{ top10_reactions : "reacts"
     users ||--o{ notifications : "receives"
     users |o--o{ notifications : "caused"
+    users ||--o{ messages : "sends"
+    users ||--o{ messages : "receives"
 ```
 
 | Table | Holds | Key fields and rules |
@@ -57,10 +59,11 @@ erDiagram
 | `top10_comments` | Comments on a Top 10 | `top10_owner_id`, `author_id`, `body` (never blank) |
 | `top10_reactions` | Like or dislike on a Top 10 | one reaction per user per Top 10; `like` or `dislike` only; not on your own Top 10 |
 | `notifications` | Events shown to a user (friend requests, comments, reactions) | `recipient_id`, `actor_id` (who caused it, may be empty), `event_type`, `message`, `read_at`; unique `(recipient_id, event_key)` so the same event is stored once; index on `(recipient_id, created_at)` for the newest-first list |
+| `messages` | Private chat messages between two users | `sender_id`, `recipient_id`, `body` (1 to 1000 characters, never blank), `created_at`; nobody can message themselves; index on `(sender_id, recipient_id, created_at, id)` for a conversation, newest first |
 
 Types: ids and foreign keys are `BIGINT`, text fields are `VARCHAR`, times are `TIMESTAMPTZ` (with time zone), flags are `BOOLEAN`, other numbers (`rank`, `failed_login_count`, `duration_ms`) are `INTEGER`, and `songs.metadata` is `JSON`.
 
-Deleting a user's row deletes their profile, sessions, Top 10, friendships, blocks, comments, reactions and received notifications (`ON DELETE CASCADE`). Notifications they caused for others stay, with `actor_id` set to empty (`ON DELETE SET NULL`). Deleting an account from the app is a soft delete (`deleted_at`) for now; removing the data is part of #57. A song cannot be deleted while it is in someone's Top 10 (`ON DELETE RESTRICT`).
+Deleting a user's row deletes their profile, sessions, Top 10, friendships, blocks, comments, reactions, received notifications and messages they sent or received (`ON DELETE CASCADE`). Ending a friendship keeps the messages. Notifications they caused for others stay, with `actor_id` set to empty (`ON DELETE SET NULL`). Deleting an account from the app is a soft delete (`deleted_at`) for now; removing the data is part of #57. A song cannot be deleted while it is in someone's Top 10 (`ON DELETE RESTRICT`).
 
 The rules above are enforced by PostgreSQL itself (unique indexes, `CHECK` constraints, foreign keys), not only by the application code, so concurrent requests cannot break them.
 
