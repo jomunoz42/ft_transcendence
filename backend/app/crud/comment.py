@@ -1,7 +1,7 @@
 from app.db.models import Top10Comment, Profile, User
 from app.crud.friendship import are_friends, is_blocked
 from app import errors
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.crud.notification import NotificationEvents
@@ -24,6 +24,16 @@ def can_interact(session: Session, owner_id: int, current_user: User) -> bool:
 
 class CommentCreate(BaseModel):
 	body: str
+
+	@field_validator("body")
+	@classmethod
+	def _body(cls, v: str) -> str:
+		"""Not blank and no NUL: the DB refuses both, which would be a 500."""
+		if not v.strip():
+			raise ValueError("required")
+		if "\x00" in v:
+			raise ValueError("contains a NUL character")
+		return v
 
 def create_comment(user_id: int, body: str, session: Session, current_user: User, events: NotificationEvents | None = None):
 	if not can_interact(session, user_id, current_user):
