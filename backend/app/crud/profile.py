@@ -21,7 +21,7 @@ class ProfileUpdate(BaseModel):
 			raise ValueError("contains a NUL character")
 		return v
 
-	@field_validator("bio", "avatar_url")
+	@field_validator("bio")
 	@classmethod
 	def _no_nul(cls, v: Optional[str]) -> Optional[str]:
 		"""PostgreSQL rejects NUL in text, which would be a 500."""
