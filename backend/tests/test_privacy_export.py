@@ -7,7 +7,7 @@ import pytest
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import start_session
 from app.db.models import (
-    Block, Friendship, Message, Notification, Profile, Song, Top10Comment,
+    Block, Friendship, Message, Notification, OAuthAccount, Profile, Song, Top10Comment,
     Top10Entry, Top10Reaction, User,
 )
 from app.mail import MailDeliveryError, get_mailer
@@ -77,7 +77,7 @@ def test_empty_export_is_readable_versioned_and_delivered_to_account_email(sessi
     }
     assert exported["profile"]["display_name"] == "Alice"
     assert exported["deletion_request"] is None
-    for section in ("top10", "friendships", "blocks", "authored_comments", "reactions", "received_notifications", "messages"):
+    for section in ("top10", "friendships", "blocks", "authored_comments", "reactions", "received_notifications", "messages", "oauth_accounts"):
         assert exported[section] == []
     assert mailer.recipients == ["alice@privacy.test"]
 
@@ -182,6 +182,25 @@ def test_message_export_includes_both_directions_once_and_excludes_other_convers
     bob_messages = client.post(URL).json()["messages"]
     assert {row["id"] for row in bob_messages} == {rows[0].id, rows[1].id, rows[4].id, rows[5].id}
     assert all(bob_id in (row["sender_id"], row["recipient_id"]) for row in bob_messages)
+
+
+def test_export_lists_only_this_users_linked_oauth_accounts(session, client, mailer):
+    alice = make_user(session, "alice@privacy.test", "Alice")
+    bob = make_user(session, "bob@privacy.test", "Bob")
+    session.add_all([
+        OAuthAccount(provider="42", provider_id="1001", user_id=alice.id),
+        OAuthAccount(provider="42", provider_id="2002", user_id=bob.id),
+    ])
+    log_in(session, client, alice)
+
+    exported = client.post(URL).json()
+
+    assert [
+        {"provider": row["provider"], "provider_id": row["provider_id"]}
+        for row in exported["oauth_accounts"]
+    ] == [{"provider": "42", "provider_id": "1001"}]
+    assert set(exported["oauth_accounts"][0]) == {"provider", "provider_id", "created_at"}
+    assert exported["oauth_accounts"][0]["created_at"]
 
 
 def test_email_failure_still_returns_export_without_logging_sensitive_details(session, client, mailer, caplog):
