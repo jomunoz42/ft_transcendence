@@ -17,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     UniqueConstraint,
     func,
@@ -71,7 +72,7 @@ class Profile(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
-    avatar_url: Mapped[str | None] = mapped_column(String)
+    avatar_url: Mapped[str] = mapped_column(String, server_default=text("'/api/v1/avatars/default'"), nullable=False)  # the default until an upload, then /api/v1/avatars/{user_id}?v=...
     bio: Mapped[str | None] = mapped_column(String)
     is_top10_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)  # False = friends only; enforced in the route layer, not the DB
     is_online: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)  # written by the WebSocket layer, read elsewhere
@@ -213,6 +214,16 @@ class Message(Base):
 
     sender: Mapped["User"] = relationship(foreign_keys=[sender_id])
     recipient: Mapped["User"] = relationship(foreign_keys=[recipient_id])
+
+
+class Avatar(Base):
+    """A user's uploaded avatar, already re-encoded to a 256x256 WebP; at most one per user."""
+
+    __tablename__ = "avatars"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class UserSession(Base):
