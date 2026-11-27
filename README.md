@@ -83,6 +83,7 @@ erDiagram
     users ||--o{ notifications : "receives / causes"
     users ||--o{ messages : "sends / receives"
     users ||--o| avatars : "uploads"
+    users ||--o{ oauth_accounts : "logs in with"
 
     users {
         bigint id PK
@@ -161,11 +162,16 @@ erDiagram
         bytea data "256x256 WebP"
         timestamptz updated_at
     }
+    oauth_accounts {
+        varchar provider PK "42"
+        varchar provider_id PK
+        bigint user_id FK
+    }
 ```
 
 | Table | Holds | Key fields and rules |
 | --- | --- | --- |
-| `users` | Accounts | `email` unique and lowercase, `password_hash` (argon2, never the password), failed login counter and `locked_until` for lockout, `deleted_at` for GDPR soft delete |
+| `users` | Accounts | `email` unique and lowercase, `password_hash` (argon2, never the password; empty for accounts that only log in with 42), failed login counter and `locked_until` for lockout, `deleted_at` for GDPR soft delete |
 | `profiles` | Public profile, one per user | `display_name`, `avatar_url`, `bio`, `is_top10_public`, `is_online`, `last_seen_at` |
 | `sessions` | Logged-in browsers | `token_hash` (SHA-256 of the cookie token; the token itself is never stored), `expires_at` |
 | `songs` | Songs from Spotify or added by hand | unique `(provider, provider_id)`, `title`, `artist`, `album`, `cover_url` |
@@ -177,10 +183,11 @@ erDiagram
 | `notifications` | Events shown to a user (friend requests, comments, reactions) | `recipient_id`, `actor_id` (who caused it, may be empty), `event_type`, `message`, `read_at`; unique `(recipient_id, event_key)` so the same event is stored once; index on `(recipient_id, created_at)` for the newest-first list |
 | `messages` | Private chat messages between two users | `sender_id`, `recipient_id`, `body` (1 to 1000 characters, never blank), `created_at`; nobody can message themselves; index on `(sender_id, recipient_id, created_at, id)` for a conversation, newest first |
 | `avatars` | Uploaded profile pictures, at most one per user | `user_id` (primary key), `data` (the image re-encoded to a 256x256 WebP, metadata removed), `updated_at`; without a row, `profiles.avatar_url` points at the default image |
+| `oauth_accounts` | Links a 42 account to a local user | primary key `(provider, provider_id)`, so one 42 account maps to one user; `user_id`; no 42 tokens are stored |
 
 Types: ids and foreign keys are `BIGINT`, text fields are `VARCHAR`, times are `TIMESTAMPTZ` (with time zone), flags are `BOOLEAN`, other numbers (`rank`, `failed_login_count`, `duration_ms`) are `INTEGER`, `songs.metadata` is `JSON`, and `avatars.data` is `BYTEA` (raw bytes).
 
-Deleting a user's row deletes their profile, sessions, Top 10, friendships, blocks, comments, reactions, received notifications, messages they sent or received and their avatar (`ON DELETE CASCADE`). Ending a friendship keeps the messages. Notifications they caused for others stay, with `actor_id` cleared and the remaining notification text and source key anonymized. Account deletion from the app requires an emailed confirmation token and hard-deletes the user row. A song cannot be deleted while it is in someone's Top 10 (`ON DELETE RESTRICT`).
+Deleting a user's row deletes their profile, sessions, Top 10, friendships, blocks, comments, reactions, received notifications, messages they sent or received, their avatar and their 42 login links (`ON DELETE CASCADE`). Ending a friendship keeps the messages. Notifications they caused for others stay, with `actor_id` cleared and the remaining notification text and source key anonymized. Account deletion from the app requires an emailed confirmation token and hard-deletes the user row. A song cannot be deleted while it is in someone's Top 10 (`ON DELETE RESTRICT`).
 
 The rules above are enforced by PostgreSQL itself (unique indexes, `CHECK` constraints, foreign keys), not only by the application code, so concurrent requests cannot break them.
 
