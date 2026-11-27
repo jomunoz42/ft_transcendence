@@ -5,7 +5,7 @@ provider's user id to one local user. Downgrade fails while any user has no
 password.
 
 Revision ID: 3c7f0a9b2d41
-Revises: 1ee21ffe2e6a
+Revises: c85ea1da6073
 Create Date: 2026-11-17 17:00:00
 
 """
@@ -17,7 +17,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '3c7f0a9b2d41'
-down_revision: Union[str, Sequence[str], None] = '1ee21ffe2e6a'
+down_revision: Union[str, Sequence[str], None] = 'c85ea1da6073'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
