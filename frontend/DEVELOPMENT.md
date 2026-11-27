@@ -17,8 +17,7 @@ by Pedro.
   and member profile views.
 - Account forms with native constraints, client-side checks, and accessible
   field and request error feedback.
-- Editable, manually entered Top 10 lists, with rank controls and duplicate
-  checks.
+- Top 10 lists with Spotify search-backed song additions.
 - Member profiles with Top 10 and comments through the profile API.
 - WebSocket presence snapshots and updates, with unknown/reconnecting states
   when the connection is unavailable.
@@ -26,10 +25,7 @@ by Pedro.
 - Keyboard skip link and focus indicators, semantic navigation, reduced-motion
   support, and mobile layouts.
 
-Friend-request management, song search, and chat are not implemented in the
-current frontend because the corresponding backend routes are not available.
-The Friends view currently lists member profiles and presence rather than
-providing a complete friends roster or request workflow.
+Private chat is not implemented in the current frontend.
 
 ## Styling changes and Docker
 

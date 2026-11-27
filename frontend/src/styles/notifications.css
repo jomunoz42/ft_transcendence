@@ -2,9 +2,9 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 9px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
   color: var(--green);
   background: var(--soft-green);
   border: 1px solid var(--line);
@@ -12,18 +12,36 @@
   cursor: pointer;
 }
 
-.notification-bell svg { width: 24px; height: 24px; }
+.notification-bell img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  filter:
+    brightness(0)
+    saturate(100%)
+    invert(36%)
+    sepia(21%)
+    saturate(1079%)
+    hue-rotate(224deg)
+    brightness(90%)
+    contrast(91%);
+}
+
+:root[data-theme='dark'] .notification-bell img {
+  filter: brightness(0) invert(1);
+  opacity: 0.8;
+}
 
 .notification-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 22px;
-  padding: 2px 5px;
+  top: -6px;
+  right: -7px;
+  min-width: 18px;
+  padding: 1px 4px;
   color: var(--paper);
   background: var(--green);
   border-radius: 12px;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -45,8 +63,7 @@
 }
 
 .notification-heading,
-.notification-toolbar,
-.notification-pagination {
+.notification-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -54,7 +71,7 @@
 }
 
 .notification-heading h2 { margin: 0; font-size: 1.25rem; font-family: Montserrat, sans-serif; }
-.notification-toolbar, .notification-pagination { font-size: 0.875rem; }
+.notification-toolbar { font-size: 0.875rem; }
 .notification-toolbar { margin: 12px 0; }
 .notification-panel .button, .notification-panel .text-button { font-size: 0.875rem; min-height: 44px; }
 .notification-panel button:disabled { opacity: 0.6; cursor: default; transform: none; }
@@ -70,6 +87,4 @@
 
 @media (max-width: 430px) {
   .notification-panel { padding: 14px; width: calc(100vw - 26px); }
-  .notification-pagination { gap: 8px; }
-  .notification-pagination .button { padding: 10px 12px; }
 }

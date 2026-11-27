@@ -1,22 +1,20 @@
-import {
-  useEffect,
-  useState,
-  type FormEvent,
-} from 'react'
+import { useEffect, useState } from 'react'
 
 import ProfileCard from '../components/ProfileCard.tsx'
 import SectionHeading from '../components/SectionHeading.tsx'
 import SongRows from '../components/SongRows.tsx'
-import Top10Editor, {
-  type SongDraft,
-} from '../components/Top10.tsx'
+import Top10SongPicker from '../components/Top10SongPicker.tsx'
 import {
   api,
   getErrorMessage,
   type ProfileData,
+  type Top10Entry,
   type User,
 } from '../lib/api.ts'
-import { compareTop10ByRank } from '../lib/format.ts'
+import {
+  addTop10Entry,
+  type SpotifySong,
+} from '../lib/top10Api.ts'
 import type { PresenceStatus } from '../websocket/useWebSocket.ts'
 
 type HomePageProps = {
@@ -24,68 +22,20 @@ type HomePageProps = {
   presenceStatus: PresenceStatus
 }
 
-function createDraft(profile: ProfileData | null) {
-  const entries = profile?.top10_entries
+function firstAvailableRank(entries: Top10Entry[] = []) {
+  const usedRanks = new Set(entries.map((entry) => entry.rank))
 
-  if (!entries) {
-    return []
+  for (let rank = 1; rank <= 10; rank += 1) {
+    if (!usedRanks.has(rank)) {
+      return rank
+    }
   }
 
-  const orderedEntries = [...entries]
-
-  orderedEntries.sort(compareTop10ByRank)
-
-  return orderedEntries.map((entry) => {
-    let title = ''
-    let artist = ''
-
-    if (entry.song?.title) {
-      title = entry.song.title
-    }
-
-    if (entry.song?.artist) {
-      artist = entry.song.artist
-    }
-
-    return {
-      title,
-      artist,
-    }
-  })
+  return null
 }
 
-function validateDraft(draft: SongDraft[]) {
-  for (const song of draft) {
-    if (!song.title.trim()) {
-      return 'Every song needs a title and artist.'
-    }
-
-    if (!song.artist.trim()) {
-      return 'Every song needs a title and artist.'
-    }
-  }
-
-  const songKeys = new Set<string>()
-
-  for (const song of draft) {
-    const title = song.title
-      .trim()
-      .toLocaleLowerCase()
-
-    const artist = song.artist
-      .trim()
-      .toLocaleLowerCase()
-
-    const songKey = `${title}\u0000${artist}`
-
-    if (songKeys.has(songKey)) {
-      return 'The same song cannot appear more than once.'
-    }
-
-    songKeys.add(songKey)
-  }
-
-  return ''
+function loadProfile() {
+  return api<ProfileData>('/api/v1/profiles/me')
 }
 
 export default function HomePage({
@@ -95,214 +45,92 @@ export default function HomePage({
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [editingTop10, setEditingTop10] = useState(false)
-  const [draft, setDraft] = useState<SongDraft[]>([])
-  const [savingTop10, setSavingTop10] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [addingSong, setAddingSong] = useState(false)
   const [top10Message, setTop10Message] = useState('')
 
   useEffect(() => {
     let cancelled = false
 
-    async function loadProfile() {
-      try {
-        const loadedProfile = await api<ProfileData>(
-          '/api/v1/profiles/me',
-        )
-
-        if (cancelled) {
-          return
+    void loadProfile()
+      .then((loadedProfile) => {
+        if (!cancelled) {
+          setProfile(loadedProfile)
         }
-
-        setProfile(loadedProfile)
-      } catch (reason) {
-        if (cancelled) {
-          return
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setError(getErrorMessage(reason, 'Could not load your Top 10.'))
         }
-
-        const message = getErrorMessage(
-          reason,
-          'Could not load your Top 10.',
-        )
-
-        setError(message)
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) {
           setLoading(false)
         }
-      }
-    }
-
-    void loadProfile()
+      })
 
     return () => {
       cancelled = true
     }
   }, [user])
 
-  function openTop10Editor() {
-    const songDraft = createDraft(profile)
-
-    setDraft(songDraft)
+  function openPicker() {
     setTop10Message('')
-    setEditingTop10(true)
+    setPickerOpen(true)
   }
 
-  function toggleTop10Editor() {
-    if (editingTop10) {
-      setEditingTop10(false)
+  function closePicker() {
+    setTop10Message('')
+    setPickerOpen(false)
+  }
+
+  async function addSong(song: SpotifySong) {
+    const rank = firstAvailableRank(profile?.top10_entries)
+
+    if (rank === null) {
+      setTop10Message('Your Top 10 already has ten songs.')
       return
     }
 
-    openTop10Editor()
-  }
-
-  function changeSongTitle(
-    index: number,
-    title: string,
-  ) {
-    setDraft((currentDraft) => {
-      return currentDraft.map((song, songIndex) => {
-        if (songIndex !== index) {
-          return song
-        }
-
-        return {
-          ...song,
-          title,
-        }
-      })
-    })
-  }
-
-  function changeSongArtist(
-    index: number,
-    artist: string,
-  ) {
-    setDraft((currentDraft) => {
-      return currentDraft.map((song, songIndex) => {
-        if (songIndex !== index) {
-          return song
-        }
-
-        return {
-          ...song,
-          artist,
-        }
-      })
-    })
-  }
-
-  function addSong() {
-    setDraft((currentDraft) => {
-      return [
-        ...currentDraft,
-        {
-          title: '',
-          artist: '',
-        },
-      ]
-    })
-  }
-
-  function removeSong(index: number) {
-    setDraft((currentDraft) => {
-      return currentDraft.filter((_, songIndex) => {
-        return songIndex !== index
-      })
-    })
-  }
-
-  function moveSong(
-    index: number,
-    direction: -1 | 1,
-  ) {
-    const targetIndex = index + direction
-
-    if (targetIndex < 0) {
-      return
-    }
-
-    if (targetIndex >= draft.length) {
-      return
-    }
-
-    setDraft((currentDraft) => {
-      const reorderedDraft = [...currentDraft]
-      const currentSong = reorderedDraft[index]
-
-      reorderedDraft[index] = reorderedDraft[targetIndex]
-      reorderedDraft[targetIndex] = currentSong
-
-      return reorderedDraft
-    })
-  }
-
-  async function saveTop10(
-    event: FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault()
-
-    const validationMessage = validateDraft(draft)
-
-    if (validationMessage) {
-      setTop10Message(validationMessage)
-      return
-    }
-
-    setSavingTop10(true)
+    setAddingSong(true)
     setTop10Message('')
 
     try {
-      const top10 = draft.map((song, index) => {
-        return {
-          provider: 'manual',
-          provider_id: `manual-${globalThis.crypto.randomUUID()}`,
-          title: song.title.trim(),
-          artist: song.artist.trim(),
-          rank: index + 1,
-        }
-      })
+      await addTop10Entry(user.id, song, rank)
 
-      await api('/api/v1/profiles/me', {
-        method: 'POST',
-        body: JSON.stringify({
-          top10,
-        }),
-      })
-
-      const refreshedProfile = await api<ProfileData>(
-        '/api/v1/profiles/me',
-      )
-
+      const refreshedProfile = await loadProfile()
       setProfile(refreshedProfile)
-      setEditingTop10(false)
-      setTop10Message('Top 10 saved.')
+      setPickerOpen(false)
+      setTop10Message(`${song.title} was added to your Top 10.`)
     } catch (reason) {
-      const message = getErrorMessage(
-        reason,
-        'Could not save your Top 10.',
-      )
-
-      setTop10Message(message)
+      setTop10Message(getErrorMessage(reason, 'Could not add this song.'))
     } finally {
-      setSavingTop10(false)
+      setAddingSong(false)
     }
   }
 
+  function renderMessage() {
+    if (!top10Message) {
+      return null
+    }
+
+    return (
+      <p className="social-state" role="status">
+        {top10Message}
+      </p>
+    )
+  }
+
   function renderTop10Content() {
-    if (editingTop10) {
+    if (pickerOpen) {
       return (
-        <Top10Editor
-          draft={draft}
-          saving={savingTop10}
-          message={top10Message}
-          onSubmit={saveTop10}
-          onTitleChange={changeSongTitle}
-          onArtistChange={changeSongArtist}
-          onMoveSong={moveSong}
-          onRemoveSong={removeSong}
-          onAddSong={addSong}
-        />
+        <>
+          <Top10SongPicker
+            adding={addingSong}
+            onSelect={addSong}
+          />
+          {renderMessage()}
+        </>
       )
     }
 
@@ -336,75 +164,52 @@ export default function HomePage({
         <p className="social-state">
           Your Top 10 is empty. Add the songs you love.
         </p>
-
-        <button
-          className="button button-outline"
-          type="button"
-          onClick={openTop10Editor}
-        >
-          Add your first song
-        </button>
       </div>
     )
   }
 
   function renderTop10Actions() {
-    if (editingTop10) {
+    if (pickerOpen) {
       return null
     }
 
+    const entries = profile?.top10_entries ?? []
+
     return (
       <>
-        <button
-          className="add-song"
-          type="button"
-          onClick={openTop10Editor}
-        >
-          ＋ <span>Add a song to your list</span>
-        </button>
+        {entries.length < 10 && (
+          <button
+            className="add-song"
+            type="button"
+            disabled={loading || Boolean(error)}
+            onClick={openPicker}
+          >
+            ＋ <span>Add a song to your list</span>
+          </button>
+        )}
 
-        {renderTop10Message()}
+        {renderMessage()}
       </>
     )
   }
 
-  function renderTop10Message() {
-    if (!top10Message) {
-      return null
-    }
-
-    return (
-      <p
-        className="social-state"
-        role="status"
-      >
-        {top10Message}
-      </p>
-    )
-  }
-
-  let editorButtonLabel = 'Edit list'
-
-  if (editingTop10) {
-    editorButtonLabel = 'Cancel'
-  }
-
-  const editorButton = (
+  const pickerAction = pickerOpen ? (
     <button
       className="text-button"
       type="button"
-      onClick={toggleTop10Editor}
+      disabled={addingSong}
+      onClick={closePicker}
     >
-      {editorButtonLabel} <span>↗</span>
+      Cancel
     </button>
-  )
+  ) : undefined
 
   return (
     <div className="home-grid">
       <section className="card top10-card">
         <SectionHeading
           title="Your Top 10"
-          action={editorButton}
+          action={pickerAction}
         />
 
         {renderTop10Content()}
