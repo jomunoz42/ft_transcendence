@@ -2,7 +2,6 @@ from app.db.models import User, Profile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, timezone
 from app.auth.passwords import hash_password
 
 class UserUpdate(BaseModel):
@@ -21,9 +20,3 @@ def update_user(user_id: int, data: UserUpdate, session: Session):
 		setattr(user, "is_verified", False)
 	session.flush()
 	return user
-
-def delete_user(user_id: int, session: Session):
-	user = session.query(User).where(User.id == user_id).first()
-	user.deleted_at = datetime.now(timezone.utc)
-	session.flush()
-	return None

@@ -40,8 +40,9 @@ type ValidationError = {
 export class ApiError extends Error {
   readonly status: number
   readonly detail: unknown
+  readonly retryAfterSeconds: number | null
 
-  constructor(status: number, detail: unknown) {
+  constructor(status: number, detail: unknown, retryAfterSeconds: number | null = null) {
     const message = apiErrorMessage(status, detail)
 
     super(message)
@@ -49,6 +50,7 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
     this.detail = detail
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -195,7 +197,12 @@ export async function api<T>(
   if (!response.ok) {
     const detail = await readErrorDetail(response)
 
-    throw new ApiError(response.status, detail)
+    const retryAfter = Number(response.headers.get('Retry-After'))
+    throw new ApiError(
+      response.status,
+      detail,
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
+    )
   }
 
   if (response.status === 204) {

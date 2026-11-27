@@ -73,6 +73,16 @@ export default function App() {
     })
   }
 
+  function handleAccountDeleted() {
+    if (user !== null) {
+      window.localStorage.removeItem(`myplaylist-blocked-users-${user.id}`)
+    }
+    setHeaderNotice('')
+    setUser(null)
+    window.history.replaceState({}, '', '/login')
+    setPath('/login')
+  }
+
   function handleToggleTheme() {
     setTheme((currentTheme) => {
       if (currentTheme === 'light') {
@@ -154,7 +164,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
 
-    api<User>('/api/v1/auth/me')
+    api<User>('/api/v1/auth/me', { cache: 'no-store' })
       .then((currentUser) => {
         if (cancelled) {
           return
@@ -247,6 +257,7 @@ export default function App() {
       <SettingsPage
         user={user}
         onDisplayNameChange={handleDisplayNameChange}
+        onAccountDeleted={handleAccountDeleted}
       />
     )
   } else if (path.startsWith('/members/')) {
