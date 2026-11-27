@@ -123,6 +123,21 @@ Three more rules follow the same idea:
   without the index, "all sessions of this user" or deleting a user reads the
   whole table.
 
+### Why is the Top 10 rank check deferrable, but immediate by default?
+
+So two entries can swap ranks in place, keep their ids, and the code stays ORM.
+
+- A plain `UNIQUE (user_id, rank)` is checked after each row. One UPDATE that
+  gives A rank 2 and B rank 1 fails at the first row, because B still holds 2.
+- `DEFERRABLE INITIALLY IMMEDIATE` is checked at the end of each statement
+  instead (the SQL standard behaviour). The same UPDATE, written with the ORM
+  (`update(Top10Entry)` + `case`), swaps both rows in one go. A real duplicate
+  is still refused at the end of that statement.
+- Not `INITIALLY DEFERRED`: every write would then fail only at `commit()`.
+  Routes catch `IntegrityError` at `flush()` to answer 409, and the tests turn
+  each commit into a savepoint release, which never checks deferred
+  constraints.
+
 ---
 
 ## Auth

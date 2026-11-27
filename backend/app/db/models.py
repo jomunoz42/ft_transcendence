@@ -104,7 +104,8 @@ class Song(Base):
 class Top10Entry(Base):
     __tablename__ = "top10_entries"
     __table_args__ = (
-        UniqueConstraint("user_id", "rank"),
+        # Deferrable so it is checked per statement, not per row: one UPDATE can swap two ranks.
+        UniqueConstraint("user_id", "rank", name="top10_entries_user_id_rank_key", deferrable=True, initially="IMMEDIATE"),
         UniqueConstraint("user_id", "song_id"),
         CheckConstraint("rank BETWEEN 1 AND 10", name="ck_top10_entries_rank_range"),
     )
