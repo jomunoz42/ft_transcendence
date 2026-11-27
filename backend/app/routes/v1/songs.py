@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
 from app.db import get_session
 from app.db.models import User
@@ -23,6 +23,6 @@ def search_song(q: str = None, session: Session = Depends(get_session)):
 	return songs
 
 @router.get("/{song_id}")
-def get_song(song_id: int, session: Session = Depends(get_session)):
+def get_song(song_id: int = Path(ge=1, le=2**63 - 1), session: Session = Depends(get_session)):
 	song = read_song(song_id=song_id, session=session)
 	return song

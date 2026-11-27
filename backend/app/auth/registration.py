@@ -31,13 +31,24 @@ def _looks_like_email(email: str) -> bool:
     )
 
 
-def register_user(session: Session, email: str, password: str, display_name: str) -> User:
-    """Create a user and their profile. Raises on bad input or duplicate email; never commits."""
+def check_email(email: str) -> str:
+    """Return the email in its stored form; raise 422 if it is not a valid address. Registration and settings share this."""
     email = normalize_email(email)
     if not _looks_like_email(email):
         raise errors.http_422_registration("email", "not a valid email address")
+    return email
+
+
+def check_password(password: str) -> None:
+    """Raise 422 unless the password is 8 to 128 characters. Registration and settings share this."""
     if not 8 <= len(password) <= 128:
         raise errors.http_422_registration("password", "must be 8 to 128 characters")
+
+
+def register_user(session: Session, email: str, password: str, display_name: str) -> User:
+    """Create a user and their profile. Raises on bad input or duplicate email; never commits."""
+    email = check_email(email)
+    check_password(password)
     display_name = display_name.strip()
     if not display_name:
         raise errors.http_422_registration("display_name", "required")

@@ -77,6 +77,26 @@ def test_settings_refuse_what_registration_refuses(friends, body):
     assert 400 <= response.status_code < 500
 
 
+def test_settings_store_the_email_the_way_login_looks_it_up(friends):
+    alice, _, _ = friends
+
+    changed = alice.post(f"{API}/settings", json={"email": "  Alice.New@X.com "})
+    login = browser().post(f"{API}/auth/login", json={"email": "alice.new@x.com", "password": ALICE["password"]})
+
+    assert changed.json()["email"] == "alice.new@x.com"
+    assert login.status_code == 200
+
+
+def test_settings_with_a_taken_email_is_a_conflict_and_changes_nothing(friends):
+    alice, _, _ = friends
+
+    response = alice.post(f"{API}/settings", json={"email": BOB["email"], "password": "brand-new-pass"})
+    old_login = browser().post(f"{API}/auth/login", json={"email": ALICE["email"], "password": ALICE["password"]})
+
+    assert response.status_code == 409
+    assert old_login.status_code == 200
+
+
 BAD_PROFILES = [
     {"display_name": ""},
     {"display_name": "   "},
