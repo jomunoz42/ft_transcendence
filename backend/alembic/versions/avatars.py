@@ -6,7 +6,7 @@ default avatar URL, and existing NULL or hand-set values are reset to it,
 since only an upload may point it at an image.
 
 Revision ID: 5b7b1c7e545c
-Revises: c85ea1da6073
+Revises: 70607fbcbe70
 Create Date: 2026-11-25 12:00:00
 
 """
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 
 revision: str = '5b7b1c7e545c'
-down_revision: Union[str, Sequence[str], None] = 'c85ea1da6073'
+down_revision: Union[str, Sequence[str], None] = '70607fbcbe70'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
