@@ -86,8 +86,6 @@ export default function Shell({
           </div>
 
           <div className="topbar-actions">
-            <NotificationBell key={user.id} revision={notificationRevision}
-              connectionStatus={connectionStatus} onSessionExpired={onSessionExpired} />
             {headerNotice && (
               <div
                 className="header-notice"
@@ -114,6 +112,8 @@ export default function Shell({
                 />
               </span>
             </button>
+            <NotificationBell key={user.id} revision={notificationRevision}
+              connectionStatus={connectionStatus} onSessionExpired={onSessionExpired} />
           </div>
         </header>
 

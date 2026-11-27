@@ -13,8 +13,7 @@ export const NOTIFICATION_PAGE_SIZE = 20
 export const MAX_NOTIFICATION_OFFSET = 10_000
 
 export async function fetchNotifications(offset: number, signal: AbortSignal) {
-  // One extra row tells us whether an older page exists. Identity comes only
-  // from the session cookie; no recipient/user ID is sent by the client.
+
   const [items, count] = await Promise.all([
     api<UserNotification[]>(
       `/api/v1/notifications?limit=${NOTIFICATION_PAGE_SIZE + 1}&offset=${offset}`,
