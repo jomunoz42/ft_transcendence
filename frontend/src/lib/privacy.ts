@@ -26,7 +26,6 @@ export async function downloadPrivacyExport(): Promise<'sent' | 'failed'> {
         detail = body.detail
       }
     } catch {
-      // The status still describes the failure.
     }
     throw new ApiError(response.status, detail)
   }

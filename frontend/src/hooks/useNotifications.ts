@@ -15,8 +15,7 @@ type NotificationState = {
   error: string
 }
 
-// The owning component is keyed by authenticated user ID. No data is stored
-// outside that component, and every request is cancelled when it unmounts.
+
 export default function useNotifications(revision: number, onSessionExpired: () => void) {
   const [page, setPage] = useState({ offset: 0, revision })
   const [refreshVersion, setRefreshVersion] = useState(0)
@@ -27,8 +26,7 @@ export default function useNotifications(revision: number, onSessionExpired: () 
   })
   const loadRequest = useRef<AbortController | null>(null)
   const readRequest = useRef<AbortController | null>(null)
-  // A live event/reconnection returns to the newest page instead of appending
-  // shifted offset pages, which could duplicate or miss newly inserted rows.
+
   const offset = page.revision === revision ? page.offset : 0
 
   useEffect(() => {
@@ -87,7 +85,7 @@ export default function useNotifications(revision: number, onSessionExpired: () 
     if (readRequest.current !== null || state.loading) return
     const item = state.items.find((item) => item.id === id)
     if (!item || item.read_at !== null) return
-    // A delayed GET must never overwrite a successful read mutation.
+
     loadRequest.current?.abort()
     const request = new AbortController()
     readRequest.current = request
@@ -111,8 +109,7 @@ export default function useNotifications(revision: number, onSessionExpired: () 
     } finally {
       if (!request.signal.aborted) {
         readRequest.current = null
-        // Restarts REST synchronization, including any live events that arrived
-        // during the mutation. The unread count is always read from the server.
+
         setState((previous) => ({ ...previous, loading: true }))
         setReadingId(null)
       }

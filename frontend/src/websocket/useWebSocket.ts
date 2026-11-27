@@ -144,8 +144,6 @@ export function useWebSocket(enabled: boolean, userId?: number) {
         if (!message) return
 
         if (message.type === 'notification') {
-          // This is an invalidation signal only. REST supplies all content,
-          // ownership, read status and counts through the authenticated session.
           if (synchronized) setNotificationRevision((value) => value + 1)
           return
         }
@@ -182,7 +180,6 @@ export function useWebSocket(enabled: boolean, userId?: number) {
       })
 
       current.addEventListener('error', () => {
-        // The browser follows a failed upgrade with close; retry only there.
       })
     }
 

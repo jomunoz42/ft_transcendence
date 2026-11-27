@@ -46,8 +46,6 @@ export default function NotificationBell({ revision, connectionStatus, onSession
 
   useEffect(() => {
     if (readingId === null && !loading && !loadingMore && lastReadButton.current) {
-      // The successful read removes its button. Keep keyboard users in the
-      // panel unless they have already moved focus somewhere else.
       if (document.activeElement === document.body) {
         if (lastReadButton.current.isConnected) lastReadButton.current.focus()
         else panel.current?.focus()
