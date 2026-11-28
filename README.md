@@ -304,6 +304,30 @@ requests, a `wss://localhost/ws` connection with status `101` after login, and
 Vite hot reload. Check DevTools for certificate, mixed-content, or WebSocket
 errors. Direct HTTP access on ports 8000 and 5173 should fail.
 
+### Request-log privacy
+
+Uvicorn access logging stays enabled. Its HTTP and WebSocket request lines retain
+client address, method or connection type, path, protocol and response status,
+but omit the **entire query string on every route**, including ordinary routes.
+This avoids putting OAuth codes, state values or future query-based credentials
+in access logs. The trade-off is that query filters are unavailable when
+investigating a request from logs. The filter changes log records only; request
+handlers and Prometheus still receive the original query.
+
+Caddy's runtime error logs retain the request method and path but omit the query
+from `request.uri` and omit all request headers. This also protects values in
+headers such as `Referer` when an upstream fails. Header details are therefore
+unavailable in Caddy runtime diagnostics. Caddy access logging is currently
+not enabled.
+
+Revalidate both log paths after **upgrading Uvicorn** or **enabling Caddy access
+logging**. Run `backend/tests/test_access_logging.py` against a real Uvicorn
+worker and `backend/tests/test_caddy_logging.py` with Docker, then inspect
+synthetic successful and failed OAuth callback requests. The Uvicorn access
+filter suppresses an access record if a future version changes its expected
+record shape, so an upgrade must also confirm ordinary access lines still appear.
+Other reverse proxies and external log collectors need their own redaction rules.
+
 ### Stop and development commands
 
 To stop the application:
