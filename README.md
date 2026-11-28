@@ -64,7 +64,7 @@ flowchart LR
     grafana -.- grafana_vol
 ```
 
-Caddy serves the Vite frontend and sends `/api/*` and `/ws` directly to FastAPI. Browser traffic uses HTTPS/WSS; proxy traffic inside Compose uses HTTP/WS. Only Caddy publishes ports on all host interfaces. PostgreSQL, Prometheus, and Grafana publish loopback-only ports; the frontend and backend have no host ports. The PostgreSQL host port defaults to 5432 and can be changed with `POSTGRES_PORT`. The backend runs Alembic migrations before starting. Spotify is the only merged external API integration shown here; 42 OAuth and avatar upload are not merged into `main`, and account deletion currently uses a GDPR soft delete rather than a completed purge.
+Caddy serves the Vite frontend and sends `/api/*` and `/ws` directly to FastAPI. Browser traffic uses HTTPS/WSS; proxy traffic inside Compose uses HTTP/WS. Only Caddy publishes ports on all host interfaces. PostgreSQL, Prometheus, and Grafana publish loopback-only ports; the frontend and backend have no host ports. The PostgreSQL host port defaults to 5432 and can be changed with `POSTGRES_PORT`. The backend runs Alembic migrations before starting. Spotify is the only merged external API integration shown here; 42 OAuth has not merged into `main`. Avatar upload is available, and confirmed account deletion permanently removes the user row and its dependent data.
 
 ## Database Schema
 
