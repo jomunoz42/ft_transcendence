@@ -1,6 +1,15 @@
 {
 	# Clients connecting by IP may omit TLS SNI.
 	default_sni 127.0.0.1
+
+	# Runtime errors from reverse_proxy include request.uri and headers, even without access logs.
+	log {
+		format filter {
+			request>uri regexp ^([^?]*)(\?.*)?$ ${1}
+			request>headers delete
+			wrap json
+		}
+	}
 }
 
 localhost, 127.0.0.1 {

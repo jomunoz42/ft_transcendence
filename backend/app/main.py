@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
+from app.access_logging import install_query_free_uvicorn_logging
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.websocket import authenticate_websocket
 from app.db import get_session
@@ -15,6 +16,7 @@ from app.realtime.presence import DB_TIMEOUT
 from app.monitoring.middleware import PrometheusMiddleware
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
+install_query_free_uvicorn_logging()
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
