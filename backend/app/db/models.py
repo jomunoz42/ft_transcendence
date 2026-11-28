@@ -38,7 +38,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String)  # NULL = OAuth-only account
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), nullable=False)
     locked_until: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
@@ -159,6 +159,19 @@ class Block(Base):
     blocker_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True,)
     blocked_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OAuthAccount(Base):
+    """Links one provider account (e.g. a 42 user) to one local user."""
+
+    __tablename__ = "oauth_accounts"
+
+    provider: Mapped[str] = mapped_column(String, primary_key=True)  # e.g. "42"
+    provider_id: Mapped[str] = mapped_column(String, primary_key=True)  # the provider's own user id
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship()
 
 
 class Top10Comment(Base):

@@ -8,7 +8,7 @@ from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.current_user import current_user
 from app.auth.login import authenticate
 from app.auth.registration import register_user
-from app.auth.sessions import SESSION_LIFETIME, end_session, start_session
+from app.auth.sessions import end_session, set_session_cookie, start_session
 from app.db import get_session, _public
 from app.db.models import User
 from app.realtime.notifications import LogoutNotifier, get_logout_notifier
@@ -44,14 +44,7 @@ def login(body: LoginBody, response: Response, session: Session = Depends(get_se
         raise
     token = start_session(session, user)
     session.commit()
-    response.set_cookie(
-        SESSION_COOKIE_NAME,
-        token,
-        max_age=int(SESSION_LIFETIME.total_seconds()),
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
+    set_session_cookie(response, token)
     return _public(user)
 
 

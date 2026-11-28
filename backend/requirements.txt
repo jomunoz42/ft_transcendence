@@ -8,7 +8,7 @@ requests
 prometheus-client
 pillow
 python-multipart
+httpx
 
 # test dependencies
 pytest
-httpx

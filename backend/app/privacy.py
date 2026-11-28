@@ -6,7 +6,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
-    Block, DeletionRequest, Friendship, Message, Notification, Profile, Song, Top10Comment,
+    Block, DeletionRequest, Friendship, Message, Notification, OAuthAccount, Profile, Song, Top10Comment,
     Top10Entry, Top10Reaction, User,
 )
 from app.notifications import MESSAGES
@@ -54,6 +54,11 @@ def build_user_export(session: Session, user: User) -> dict:
         select(Message)
         .where(or_(Message.sender_id == user_id, Message.recipient_id == user_id))
         .order_by(Message.created_at, Message.id)
+    ).all()
+    oauth_accounts = session.scalars(
+        select(OAuthAccount)
+        .where(OAuthAccount.user_id == user_id)
+        .order_by(OAuthAccount.provider, OAuthAccount.provider_id)
     ).all()
 
     return {
@@ -157,5 +162,13 @@ def build_user_export(session: Session, user: User) -> dict:
                 "created_at": _timestamp(row.created_at),
             }
             for row in messages
+        ],
+        "oauth_accounts": [
+            {
+                "provider": row.provider,
+                "provider_id": row.provider_id,
+                "created_at": _timestamp(row.created_at),
+            }
+            for row in oauth_accounts
         ],
     }

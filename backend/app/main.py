@@ -34,6 +34,8 @@ ALLOWED_WEBSOCKET_ORIGINS = allowed_websocket_origins()
 # ROUTES
 from app.routes.v1.auth import router as auth
 app.include_router(auth, prefix="/api/v1/auth")
+from app.routes.v1.oauth import router as oauth
+app.include_router(oauth, prefix="/api/v1/auth")
 from app.routes.v1.settings import router as settings
 app.include_router(settings, prefix="/api/v1/settings")
 from app.routes.v1.profiles import router as profiles
