@@ -6,7 +6,14 @@
 versioned, indented UTF-8 JSON attachment containing the account, profile,
 ranked Top 10, friendships, outgoing blocks, authored comments and reactions,
 received notifications, messages sent or received by the requester, and
-deletion-request timing when applicable. The current format version is 3.
+deletion-request timing when applicable. The current format version is 4.
+The additive `avatar` field is `null` when no custom avatar is stored; the
+shared default image is not exported. For a custom avatar it contains
+`{"media_type":"image/webp","encoding":"base64","data":"..."}`. Decode
+`data` as Base64 to recover the exact normalized WebP bytes stored for the
+authenticated account. The profile's existing `avatar_url` remains included.
+Version 4 marks this addition so consumers can distinguish the new schema
+from version 3. No database migration is needed.
 Each message appears once with its ID, sender ID, recipient ID, body and
 creation timestamp. The response is marked `Cache-Control: no-store`.
 The export is generated in memory and is not saved on the server or sent by
@@ -18,7 +25,7 @@ The backend attempts to send a confirmation email to the account address.
 `X-Confirmation-Email` is `sent` or `failed`. An SMTP failure is logged without
 address, credentials, message content, or tokens; **it does not prevent the
 user from downloading their data**. The confirmation email contains no export
-data or download link.
+data, attachment, or download link.
 
 SMTP is configured with `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`,
 `SMTP_SECURITY` (`starttls` or `ssl`), `SMTP_TIMEOUT_SECONDS`, and optional
@@ -59,7 +66,8 @@ The transaction then locks the account row, anonymizes any retained
 notifications that name it as actor, and deletes the account. Existing FK
 cascades remove its profile, Top 10, friendships, blocks, comments, reactions,
 messages in either direction, sessions, notifications, and deletion request.
-Shared songs, unrelated conversations, and unrelated users
+The user's uploaded avatar is removed by the existing `avatars.user_id`
+foreign-key cascade. Shared songs, unrelated conversations, and unrelated users
 remain. Comments and reactions on the deleted user's Top 10 also disappear
 because that shared resource no longer exists. The old unconfirmed
 `DELETE /api/v1/settings` route is removed.

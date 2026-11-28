@@ -12,7 +12,7 @@ from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import start_session, user_for_token
 from app.auth import websocket as websocket_auth
 from app.db.models import (
-    Block, DeletionRequest, Friendship, Message, Notification, Profile, Song,
+    Avatar, Block, DeletionRequest, Friendship, Message, Notification, Profile, Song,
     Top10Comment, Top10Entry, Top10Reaction, User, UserSession,
 )
 from app.mail import MailDeliveryError, get_mailer
@@ -243,6 +243,7 @@ def test_hard_delete_cascades_and_anonymizes_retained_notifications(session, cli
     bob = make_user(session, "bob@deletion.test")
     carol = make_user(session, "carol@deletion.test")
     alice_id, bob_id, carol_id = alice.id, bob.id, carol.id
+    session.add(Avatar(user_id=alice_id, data=b"normalized-webp-test-bytes"))
     song = Song(provider="spotify", provider_id="shared-track", title="Shared", artist="Artist")
     session.add(song)
     session.flush()
@@ -288,6 +289,7 @@ def test_hard_delete_cascades_and_anonymizes_retained_notifications(session, cli
         ("sessions", "user_id"), ("notifications", "recipient_id"),
         ("messages", "sender_id"), ("messages", "recipient_id"),
         ("privacy_deletion_requests", "user_id"),
+        ("avatars", "user_id"),
     ):
         assert count_for(session, table, column, alice_id) == 0, (table, column)
     assert count_for(session, "users", "id", bob_id) == 1
