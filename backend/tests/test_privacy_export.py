@@ -1,19 +1,40 @@
 """The export route is scoped to the logged-in user and has a small public schema."""
 
+import base64
+import io
 import json
 
 import pytest
+from PIL import Image
+from sqlalchemy import select
 
 from app.auth.constants import SESSION_COOKIE_NAME
 from app.auth.sessions import start_session
 from app.db.models import (
-    Block, Friendship, Message, Notification, Profile, Song, Top10Comment,
+    Avatar, Block, Friendship, Message, Notification, Profile, Song, Top10Comment,
     Top10Entry, Top10Reaction, User,
 )
 from app.mail import MailDeliveryError, get_mailer
 from app.main import app
 
 URL = "/api/v1/privacy/export"
+AVATAR_URL = "/api/v1/profiles/me/avatar"
+
+
+def upload_avatar(client, color):
+    buffer = io.BytesIO()
+    Image.new("RGB", (80, 60), color).save(buffer, "PNG")
+    response = client.put(AVATAR_URL, files={"file": ("avatar.png", buffer.getvalue(), "image/png")})
+    assert response.status_code == 200
+    return response.json()["avatar_url"]
+
+
+def exported_avatar_bytes(exported):
+    avatar = exported["avatar"]
+    assert set(avatar) == {"media_type", "encoding", "data"}
+    assert avatar["media_type"] == "image/webp"
+    assert avatar["encoding"] == "base64"
+    return base64.b64decode(avatar["data"], validate=True)
 
 
 class RecordingMailer:
@@ -68,7 +89,7 @@ def test_empty_export_is_readable_versioned_and_delivered_to_account_email(sessi
     assert response.content.endswith(b"\n")
     assert b"\n  \"account\"" in response.content
     exported = json.loads(response.content)
-    assert exported["format_version"] == 3
+    assert exported["format_version"] == 4
     assert exported["exported_at"]
     assert exported["account"]["email"] == "alice@privacy.test"
     assert set(exported["account"]) == {
@@ -76,10 +97,64 @@ def test_empty_export_is_readable_versioned_and_delivered_to_account_email(sessi
         "deleted_at", "created_at", "updated_at",
     }
     assert exported["profile"]["display_name"] == "Alice"
+    assert exported["profile"]["avatar_url"] == "/api/v1/avatars/default"
+    assert exported["avatar"] is None
     assert exported["deletion_request"] is None
     for section in ("top10", "friendships", "blocks", "authored_comments", "reactions", "received_notifications", "messages"):
         assert exported[section] == []
     assert mailer.recipients == ["alice@privacy.test"]
+
+
+def test_uploaded_avatar_exports_exact_stored_normalized_webp(session, client, mailer):
+    alice = make_user(session, "alice@privacy.test", "Alice")
+    log_in(session, client, alice)
+    avatar_url = upload_avatar(client, (215, 40, 25))
+    stored = session.scalar(select(Avatar.data).where(Avatar.user_id == alice.id))
+
+    response = client.post(URL)
+
+    assert response.status_code == 200
+    assert response.json()["profile"]["avatar_url"] == avatar_url
+    exported = exported_avatar_bytes(response.json())
+    assert exported == stored
+    with Image.open(io.BytesIO(exported)) as image:
+        assert image.format == "WEBP"
+        assert image.size == (256, 256)
+
+
+def test_avatar_exports_are_isolated_and_track_replacement_and_removal(session, client, mailer):
+    alice = make_user(session, "alice@privacy.test", "Alice")
+    bob = make_user(session, "bob@privacy.test", "Bob")
+    log_in(session, client, alice)
+    upload_avatar(client, (215, 40, 25))
+    alice_first = session.scalar(select(Avatar.data).where(Avatar.user_id == alice.id))
+    upload_avatar(client, (25, 40, 215))
+    alice_current = session.scalar(select(Avatar.data).where(Avatar.user_id == alice.id))
+    assert alice_current != alice_first
+
+    log_in(session, client, bob)
+    upload_avatar(client, (20, 190, 40))
+    bob_current = session.scalar(select(Avatar.data).where(Avatar.user_id == bob.id))
+    assert bob_current not in (alice_first, alice_current)
+
+    log_in(session, client, alice)
+    alice_export = client.post(URL, params={"user_id": bob.id}, json={"user_id": bob.id}).json()
+    assert exported_avatar_bytes(alice_export) == alice_current
+    assert exported_avatar_bytes(alice_export) != bob_current
+    assert exported_avatar_bytes(alice_export) != alice_first
+
+    log_in(session, client, bob)
+    assert exported_avatar_bytes(client.post(URL).json()) == bob_current
+
+    log_in(session, client, alice)
+    assert client.delete(AVATAR_URL).status_code == 200
+    assert session.scalar(select(Avatar.data).where(Avatar.user_id == alice.id)) is None
+    removed = client.post(URL).json()
+    assert removed["avatar"] is None
+    assert removed["profile"]["avatar_url"] == "/api/v1/avatars/default"
+
+    log_in(session, client, bob)
+    assert exported_avatar_bytes(client.post(URL).json()) == bob_current
 
 
 def test_populated_export_is_scoped_and_excludes_secrets(session, client, mailer):

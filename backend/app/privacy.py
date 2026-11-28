@@ -1,17 +1,18 @@
 """Explicit, recipient-scoped field allowlists for the downloadable data export."""
 
+import base64
 import datetime
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
-    Block, DeletionRequest, Friendship, Message, Notification, Profile, Song, Top10Comment,
+    Avatar, Block, DeletionRequest, Friendship, Message, Notification, Profile, Song, Top10Comment,
     Top10Entry, Top10Reaction, User,
 )
 from app.notifications import MESSAGES
 
-EXPORT_VERSION = 3
+EXPORT_VERSION = 4
 
 
 def _timestamp(value: datetime.datetime | None) -> str | None:
@@ -26,6 +27,7 @@ def build_user_export(session: Session, user: User) -> dict:
     """
     user_id = user.id
     profile = session.scalar(select(Profile).where(Profile.user_id == user_id))
+    avatar_data = session.scalar(select(Avatar.data).where(Avatar.user_id == user_id))
     deletion_request = session.get(DeletionRequest, user_id)
     top10 = session.execute(
         select(Top10Entry, Song)
@@ -79,6 +81,11 @@ def build_user_export(session: Session, user: User) -> dict:
             "last_seen_at": _timestamp(profile.last_seen_at),
             "created_at": _timestamp(profile.created_at),
             "updated_at": _timestamp(profile.updated_at),
+        },
+        "avatar": None if avatar_data is None else {
+            "media_type": "image/webp",
+            "encoding": "base64",
+            "data": base64.b64encode(avatar_data).decode("ascii"),
         },
         "deletion_request": None if deletion_request is None else {
             "requested_at": _timestamp(deletion_request.requested_at),

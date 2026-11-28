@@ -133,13 +133,15 @@ HTTPS address and Mailpit at `http://127.0.0.1:8025`. Use throwaway accounts.
    `docs/advanced-search.md` on this disposable deployment.
 2. As Alice, open **Settings → Privacy and account** and select **Download my
    data**. Confirm that the browser saves `myplaylist-data.json`, the file is
-   readable JSON with `format_version: 3`, and its account email belongs to
+   readable JSON with `format_version: 4`, and its account email belongs to
    Alice. The `messages` array should contain any messages Alice sent or
    received, each once, with `id`, `sender_id`, `recipient_id`, `body`, and
    `created_at`. It should exclude conversations between other accounts.
    Check that no password hash, session token, or raw notification key appears.
-   Mailpit should show an export confirmation for
-   Alice. The download should work even if that email cannot be delivered.
+   Mailpit should show an export confirmation for Alice with no attachment.
+   Upload a custom avatar first and verify its Base64 `avatar.data` decodes to
+   the stored WebP; after removal, `avatar` must be `null`. The download
+   should work even if that email cannot be delivered.
 3. Select **Email me a deletion token**. Confirm that Settings shows the
    15-minute expiry and five-minute request cooldown. Mailpit should show the
    challenge email. Check that the token never appears in the address bar.
@@ -164,7 +166,9 @@ HTTPS address and Mailpit at `http://127.0.0.1:8025`. Use throwaway accounts.
 
 - The native Chromium acceptance above passed. The steps above remain useful
   for a later Compose, Caddy, PostgreSQL 17 and Mailpit verification.
-- Avatar export is deferred until PR #75's schema lands.
+- Avatar export includes the account's stored WebP as Base64, or `null` when
+  there is no custom avatar. The earlier browser acceptance predates this
+  addition; rerun it on a disposable deployment before production release.
 - OAuth-only deletion must be exercised after PR #65 merges. The current
   deletion flow uses a session and email token, not a password.
 - Accounts soft-deleted under earlier versions are not automatically erased.
